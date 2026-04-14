@@ -1,0 +1,2 @@
+select p.display_name, count(*) from cards c join players p on p.id=c.player_id join card_squares s on
+s.card_id=c.id where p.event_id=(select id from events where code='BUY4J') group by p.display_name order by p.display_name
