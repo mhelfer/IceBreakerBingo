@@ -158,11 +158,8 @@ describeIf("generateCards (local Supabase)", () => {
 
     // Responses: each player picks 2 options per multi question + a unique
     // talent answer for the discovery question.
-    const responses: Array<{
-      player_id: string;
-      question_id: string;
-      value: unknown;
-    }> = [];
+    const responses: Database["public"]["Tables"]["survey_responses"]["Insert"][] =
+      [];
     for (let pi = 0; pi < players.length; pi++) {
       for (let qi = 0; qi < cohortQuestions.length; qi++) {
         responses.push({

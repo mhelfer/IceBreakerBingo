@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireFacilitator } from "@/lib/session";
@@ -133,6 +134,7 @@ export async function startGame(eventCode: string): Promise<void> {
 
   revalidatePath(`/admin/${event.code}`);
   revalidatePath(`/admin/${event.code}/start`);
+  redirect(`/admin/${event.code}`);
 }
 
 export async function remintAccessCode(

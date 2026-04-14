@@ -410,9 +410,7 @@ export default async function EventDashboardPage({
         questionCount={qs.length}
       />
 
-      {event.state === "survey_open" ||
-      event.state === "survey_closed" ||
-      event.state === "curation_locked" ? (
+      {event.state !== "draft" ? (
         <PlayerLinksSection
           eventCode={event.code}
           players={roster}
