@@ -3,8 +3,9 @@
 // Produces:
 //   - 1 facilitator (email + password: devpassword)
 //   - 1 event in state `survey_closed` with auto-generated trait templates
-//   - 15 players, all with survey_submitted_at set, varied cohort + text
-//     answers so every cohort trait has ≥ 3 matchers
+//   - 24 players (6-per-bucket distribution) so dev testing tolerates 1-2
+//     absentees at the Start Game attendance gate without breaking the
+//     ≥ 3-matchers rule
 //
 // Usage:
 //   SUPABASE_URL=http://127.0.0.1:54321 \
@@ -24,15 +25,15 @@ const supabase = createClient<Database>(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-const PLAYER_COUNT = 15;
+const PLAYER_COUNT = 24;
 const OPTIONS = ["A", "B", "C", "D"] as const;
 const QUESTION_COUNT = 8;
 
 function pickOne(pi: number, qi: number): string {
   const bucket = (pi + qi) % PLAYER_COUNT;
-  if (bucket < 4) return "A";
-  if (bucket < 8) return "B";
-  if (bucket < 12) return "C";
+  if (bucket < 6) return "A";
+  if (bucket < 12) return "B";
+  if (bucket < 18) return "C";
   return "D";
 }
 
@@ -52,6 +53,15 @@ const TALENTS = [
   "card magic",
   "mountain climbing",
   "sword swallowing",
+  "crochet",
+  "tap dancing",
+  "beekeeping",
+  "archery",
+  "calligraphy",
+  "bird calls",
+  "tarot reading",
+  "knot tying",
+  "stand-up comedy",
 ];
 
 const email = `dev+${Date.now()}@example.com`;

@@ -16,6 +16,9 @@ import {
   updateTraitPrompt,
   updateTraitSquareText,
 } from "./actions";
+import { SquareTextEditor } from "./SquareTextEditor";
+import { PromptEditor } from "./PromptEditor";
+import { isPlaceholderSquareText } from "./squareText";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +82,9 @@ export default async function CuratePage({
         .select(
           "id, question_id, kind, match_rule, square_text, conversation_prompt, enabled",
         )
-        .eq("event_id", event.id),
+        .eq("event_id", event.id)
+        .order("kind")
+        .order("id"),
       supabase
         .from("survey_responses")
         .select("question_id, value, player_id, players!inner(event_id)")
@@ -93,6 +98,10 @@ export default async function CuratePage({
   const questions = (qs ?? []) as QuestionRow[];
   const allTraits = (traits ?? []) as TraitRow[];
   const allResponses = (responses ?? []) as ResponseRow[];
+
+  const placeholderCount = allTraits.filter(
+    (t) => t.enabled && isPlaceholderSquareText(t.square_text),
+  ).length;
 
   const traitsByQuestion = new Map<string, TraitRow[]>();
   for (const t of allTraits) {
@@ -135,6 +144,13 @@ export default async function CuratePage({
           Curation is locked. Unlock to edit trait templates.
         </div>
       ) : null}
+      {editable && placeholderCount > 0 ? (
+        <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <b>{placeholderCount}</b> enabled{" "}
+          {placeholderCount === 1 ? "trait still has" : "traits still have"}{" "}
+          placeholder square text (e.g. <span className="font-mono">Q1: picked A</span>). Edit each one to something readable like <span className="font-mono">Likes pizza</span> before locking.
+        </div>
+      ) : null}
 
       {rosterCount != null ? (
         <p className="mt-2 text-xs text-zinc-500">
@@ -145,7 +161,19 @@ export default async function CuratePage({
       <ol className="mt-6 flex flex-col gap-6">
         {questions.map((q) => {
           const qTraits = (traitsByQuestion.get(q.id) ?? []).slice().sort(
-            (a, b) => a.kind.localeCompare(b.kind),
+            (a, b) => {
+              const k = a.kind.localeCompare(b.kind);
+              if (k !== 0) return k;
+              const av =
+                typeof a.match_rule?.value === "string"
+                  ? a.match_rule.value
+                  : a.id;
+              const bv =
+                typeof b.match_rule?.value === "string"
+                  ? b.match_rule.value
+                  : b.id;
+              return String(av).localeCompare(String(bv));
+            },
           );
           const qResponses = responsesByQuestion.get(q.id) ?? [];
           return (
@@ -245,7 +273,7 @@ function CohortQuestion({
           <tr>
             <th className="px-3 py-2 text-left">Bucket</th>
             <th className="w-16 px-3 py-2 text-right">Count</th>
-            <th className="px-3 py-2 text-left">Square text (≤36)</th>
+            <th className="px-3 py-2 text-left">Square text (tile preview ← 36)</th>
             <th className="px-3 py-2 text-left">Conversation prompt</th>
             <th className="w-24 px-3 py-2 text-center">State</th>
           </tr>
@@ -268,49 +296,25 @@ function CohortQuestion({
                 </td>
                 <td className="px-3 py-2">
                   {editable ? (
-                    <form
+                    <SquareTextEditor
                       action={updateTraitSquareText.bind(
                         null,
                         eventCode,
                         t.id,
                       )}
-                      className="flex gap-1"
-                    >
-                      <input
-                        name="square_text"
-                        defaultValue={t.square_text}
-                        maxLength={36}
-                        className="flex-1 rounded border border-zinc-300 px-2 py-1 text-xs"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50"
-                      >
-                        ✓
-                      </button>
-                    </form>
+                      initial={t.square_text}
+                      kind="cohort"
+                    />
                   ) : (
                     <span className="font-mono text-xs">{t.square_text}</span>
                   )}
                 </td>
                 <td className="px-3 py-2">
                   {editable ? (
-                    <form
+                    <PromptEditor
                       action={updateTraitPrompt.bind(null, eventCode, t.id)}
-                      className="flex gap-1"
-                    >
-                      <input
-                        name="conversation_prompt"
-                        defaultValue={t.conversation_prompt ?? ""}
-                        className="flex-1 rounded border border-zinc-300 px-2 py-1 text-xs"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50"
-                      >
-                        ✓
-                      </button>
-                    </form>
+                      initial={t.conversation_prompt ?? ""}
+                    />
                   ) : (
                     <span className="text-xs text-zinc-600">
                       {t.conversation_prompt ?? "—"}
@@ -397,30 +401,18 @@ function DiscoveryQuestion({
           key={t.id}
           className="mt-3 flex flex-col gap-2 rounded border border-zinc-200 bg-zinc-50 p-3"
         >
-          <label className="flex items-center gap-2 text-xs">
-            <span className="w-20 text-zinc-500">Square text:</span>
-            {editable ? (
-              <form
-                action={updateTraitSquareText.bind(null, eventCode, t.id)}
-                className="flex flex-1 gap-1"
-              >
-                <input
-                  name="square_text"
-                  defaultValue={t.square_text}
-                  maxLength={36}
-                  className="flex-1 rounded border border-zinc-300 px-2 py-1 text-xs"
-                />
-                <button
-                  type="submit"
-                  className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50"
-                >
-                  ✓
-                </button>
-              </form>
-            ) : (
+          {editable ? (
+            <SquareTextEditor
+              action={updateTraitSquareText.bind(null, eventCode, t.id)}
+              initial={t.square_text}
+              kind="discovery"
+            />
+          ) : (
+            <div className="text-xs">
+              <span className="text-zinc-500">Square text: </span>
               <span className="font-mono">{t.square_text}</span>
-            )}
-          </label>
+            </div>
+          )}
           {editable ? (
             <form
               action={setTraitEnabled.bind(null, eventCode, t.id, !t.enabled)}
