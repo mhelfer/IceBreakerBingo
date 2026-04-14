@@ -55,13 +55,29 @@ export default async function PlayerCardPage() {
     );
   }
 
-  const { data: rows } = await supabase
-    .from("card_squares")
-    .select(
-      "position, trait_template_id, trait_templates(kind, square_text, conversation_prompt)",
-    )
-    .eq("card_id", card.id)
-    .order("position");
+  const [{ data: rows }, { data: claims }] = await Promise.all([
+    supabase
+      .from("card_squares")
+      .select(
+        "position, trait_template_id, trait_templates(kind, square_text, conversation_prompt)",
+      )
+      .eq("card_id", card.id)
+      .order("position"),
+    supabase
+      .from("claims")
+      .select("position, via_player_id, players(display_name)")
+      .eq("card_id", card.id),
+  ]);
+
+  const claimByPosition = new Map(
+    (claims ?? []).map((c) => {
+      const via = Array.isArray(c.players) ? c.players[0] : c.players;
+      return [
+        c.position,
+        { viaDisplayName: via?.display_name ?? "Teammate" },
+      ];
+    }),
+  );
 
   const squares: SquareView[] = (rows ?? []).map((r) => {
     const tt = Array.isArray(r.trait_templates)
@@ -74,14 +90,17 @@ export default async function PlayerCardPage() {
         conversationPrompt: null,
         kind: "free",
         claimed: true,
+        viaDisplayName: null,
       };
     }
+    const claim = claimByPosition.get(r.position);
     return {
       position: r.position,
       squareText: tt.square_text,
       conversationPrompt: tt.conversation_prompt,
       kind: tt.kind as "cohort" | "discovery",
-      claimed: false, // claims pipeline lands in Phase 5
+      claimed: !!claim,
+      viaDisplayName: claim?.viaDisplayName ?? null,
     };
   });
 

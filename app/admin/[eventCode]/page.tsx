@@ -510,6 +510,15 @@ function StateSection({
             View curation
           </a>
         </div>
+      ) : state === "live" || state === "ended" ? (
+        <div className="mt-3">
+          <a
+            href={`/facilitate/${eventCode}`}
+            className="rounded bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800"
+          >
+            {state === "live" ? "Live dashboard →" : "View final board →"}
+          </a>
+        </div>
       ) : null}
     </section>
   );

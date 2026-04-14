@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import confetti from "canvas-confetti";
 import { FREE_POSITION } from "@/lib/cardGen";
 
 export type SquareView = {
@@ -9,6 +11,7 @@ export type SquareView = {
   conversationPrompt: string | null;
   kind: "cohort" | "discovery" | "free";
   claimed: boolean;
+  viaDisplayName: string | null;
 };
 
 type PickerPayload = {
@@ -22,8 +25,16 @@ type PickerPayload = {
   postedAt: number;
 };
 
+type RevealState = {
+  squareText: string;
+  conversationPrompt: string;
+  kind: "cohort" | "discovery";
+  viaDisplayName: string;
+  bingo: boolean;
+};
+
 const PICKER_KEY = "ibb:picker";
-const PICKER_TTL_MS = 3 * 60 * 1000; // matches the 3-min idle dismiss rule
+const PICKER_TTL_MS = 3 * 60 * 1000;
 const TOTAL = 25;
 
 function loadPicker(): PickerPayload | null {
@@ -43,10 +54,28 @@ function loadPicker(): PickerPayload | null {
   }
 }
 
+function fireBingoConfetti() {
+  const reduced =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) return;
+  confetti({
+    particleCount: 120,
+    spread: 80,
+    startVelocity: 45,
+    origin: { y: 0.6 },
+  });
+}
+
 export function CardGrid({ squares }: { squares: SquareView[] }) {
+  const router = useRouter();
   const byPosition = new Map(squares.map((s) => [s.position, s]));
   const [active, setActive] = useState<SquareView | null>(null);
   const [picker, setPicker] = useState<PickerPayload | null>(null);
+  const [reveal, setReveal] = useState<RevealState | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const confettiFired = useRef(false);
 
   useEffect(() => {
     setPicker(loadPicker());
@@ -62,6 +91,57 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
   function dismissPicker() {
     sessionStorage.removeItem(PICKER_KEY);
     setPicker(null);
+  }
+
+  async function claimSquare(position: number) {
+    if (!picker || picker.result !== "eligible" || submitting) return;
+    setSubmitting(true);
+    setClaimError(null);
+    try {
+      const res = await fetch("/api/claim", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          position,
+          scannedPlayerId: picker.scanned.id,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      const body = (await res.json()) as
+        | {
+            ok: true;
+            claimed: true;
+            bingo: boolean;
+            reveal: {
+              squareText: string;
+              conversationPrompt: string;
+              kind: "cohort" | "discovery";
+              viaDisplayName: string;
+            };
+          }
+        | { ok: false; error: string };
+      if (!res.ok || !body.ok) {
+        setClaimError(body.ok === false ? body.error : "claim failed");
+        setSubmitting(false);
+        return;
+      }
+      dismissPicker();
+      setReveal({ ...body.reveal, bingo: body.bingo });
+      if (body.bingo && !confettiFired.current) {
+        confettiFired.current = true;
+        fireBingoConfetti();
+      }
+    } catch {
+      setClaimError("network error — try again");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function dismissReveal() {
+    setReveal(null);
+    confettiFired.current = false;
+    router.refresh();
   }
 
   return (
@@ -101,6 +181,9 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
               {picker.result === "eligible" ? "Skip →" : "Dismiss"}
             </button>
           </div>
+          {claimError ? (
+            <p className="mt-2 text-xs text-red-700">{claimError}</p>
+          ) : null}
         </div>
       ) : null}
 
@@ -125,16 +208,11 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
               key={pos}
               type="button"
               role="gridcell"
+              disabled={submitting && isEligible}
               onClick={() => {
                 if (!sq) return;
                 if (isEligible) {
-                  // Claims API lands in Phase 5. For now, acknowledge the
-                  // pick by clearing picker state so the tester can see the
-                  // full flow up to the claim moment.
-                  alert(
-                    `Would claim "${sq.squareText ?? "free"}" via ${picker!.scanned.displayName}. Claim API ships in Phase 5.`,
-                  );
-                  dismissPicker();
+                  void claimSquare(pos);
                   return;
                 }
                 setActive(sq);
@@ -172,6 +250,46 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
         })}
       </div>
 
+      {reveal ? (
+        <div
+          role="dialog"
+          aria-modal
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4"
+          onClick={dismissReveal}
+        >
+          <div
+            className="w-full max-w-md rounded-t-xl bg-white p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {reveal.bingo ? (
+              <div className="mb-3 rounded bg-amber-100 px-3 py-2 text-center text-sm font-semibold text-amber-900">
+                ✨🎉 BINGO! 🎉✨
+              </div>
+            ) : null}
+            <div className="mb-2 text-xs uppercase tracking-wide text-zinc-500">
+              {reveal.kind === "discovery" ? "💬 Discovery" : "🔖 Cohort"}
+            </div>
+            <div className="text-lg font-semibold">{reveal.squareText}</div>
+            <div className="mt-3 text-sm text-green-700">
+              Claimed with {reveal.viaDisplayName}!
+            </div>
+            <p className="mt-3 text-sm text-zinc-700">
+              {reveal.conversationPrompt}
+            </p>
+            <p className="mt-4 text-xs text-zinc-500">
+              💡 Don&apos;t forget to let {reveal.viaDisplayName} scan you back.
+            </p>
+            <button
+              type="button"
+              onClick={dismissReveal}
+              className="mt-5 w-full rounded bg-black py-2 text-sm text-white hover:bg-zinc-800"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {active ? (
         <div
           role="dialog"
@@ -199,11 +317,13 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
               </p>
             ) : null}
             <p className="mt-4 text-xs text-zinc-500">
-              {active.claimed
-                ? "Claimed."
-                : active.kind === "free"
-                  ? "Always marked."
-                  : "Scan a teammate's QR to claim this square when they match."}
+              {active.claimed && active.viaDisplayName
+                ? `Claimed via ${active.viaDisplayName}.`
+                : active.claimed
+                  ? "Claimed."
+                  : active.kind === "free"
+                    ? "Always marked."
+                    : "Scan a teammate's QR to claim this square when they match."}
             </p>
             <button
               type="button"

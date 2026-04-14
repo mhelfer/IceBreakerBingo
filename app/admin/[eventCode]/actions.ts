@@ -10,6 +10,7 @@ import { generate96BitToken } from "@/lib/ids";
 import { STARTER_QUESTIONS } from "@/lib/questionTemplate";
 import { seedsForQuestion, type MatchRule } from "@/lib/traits";
 import { generateCards } from "@/lib/cardGenIO";
+import { fastestBingoWinners, unluckiestWinners } from "@/lib/prizes";
 
 const codeSchema = z
   .string()
@@ -134,7 +135,7 @@ export async function startGame(eventCode: string): Promise<void> {
 
   revalidatePath(`/admin/${event.code}`);
   revalidatePath(`/admin/${event.code}/start`);
-  redirect(`/admin/${event.code}`);
+  redirect(`/facilitate/${event.code}`);
 }
 
 export async function remintAccessCode(
@@ -152,6 +153,147 @@ export async function remintAccessCode(
     .eq("id", id)
     .eq("event_id", event.id);
   if (error) throw new Error(error.message);
+  revalidatePath(`/admin/${event.code}`);
+}
+
+export async function setReuseUnlocked(
+  eventCode: string,
+  unlocked: boolean,
+): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "live") {
+    throw new Error("Reuse toggle only works while the game is live.");
+  }
+  const { error } = await supabase
+    .from("events")
+    .update({
+      reuse_unlocked: unlocked,
+      reuse_unlocked_at: unlocked ? new Date().toISOString() : null,
+    })
+    .eq("id", event.id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/facilitate/${event.code}`);
+}
+
+export async function endGame(eventCode: string): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "live") {
+    throw new Error(`Can't end game from state ${event.state}.`);
+  }
+  const endedAt = new Date().toISOString();
+
+  // Freeze state first so new claims are rejected while we compute.
+  const { error: stateErr } = await supabase
+    .from("events")
+    .update({ state: "ended", ended_at: endedAt })
+    .eq("id", event.id);
+  if (stateErr) throw new Error(stateErr.message);
+
+  // Pull the frozen inputs.
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, absent")
+    .eq("event_id", event.id);
+  const eligiblePlayers = (players ?? []).filter((p) => !p.absent);
+
+  const { data: cards } = await supabase
+    .from("cards")
+    .select("id, player_id")
+    .in(
+      "player_id",
+      eligiblePlayers.map((p) => p.id),
+    );
+  const cardIdByPlayer = new Map(
+    (cards ?? []).map((c) => [c.player_id, c.id]),
+  );
+  const cardIds = (cards ?? []).map((c) => c.id);
+
+  const { data: claims } = await supabase
+    .from("claims")
+    .select("card_id, claimed_at")
+    .in("card_id", cardIds.length > 0 ? cardIds : ["00000000-0000-0000-0000-000000000000"]);
+  const { data: bingos } = await supabase
+    .from("bingos")
+    .select("player_id, completed_at")
+    .in("player_id", eligiblePlayers.map((p) => p.id));
+
+  const firstClaimByCard = new Map<string, number>();
+  const totalClaimsByCard = new Map<string, number>();
+  for (const c of claims ?? []) {
+    const t = Date.parse(c.claimed_at);
+    const prev = firstClaimByCard.get(c.card_id);
+    if (prev === undefined || t < prev) firstClaimByCard.set(c.card_id, t);
+    totalClaimsByCard.set(c.card_id, (totalClaimsByCard.get(c.card_id) ?? 0) + 1);
+  }
+  const firstBingoByPlayer = new Map<string, number>();
+  for (const b of bingos ?? []) {
+    const t = Date.parse(b.completed_at);
+    const prev = firstBingoByPlayer.get(b.player_id);
+    if (prev === undefined || t < prev) firstBingoByPlayer.set(b.player_id, t);
+  }
+
+  // Fastest Bingo inputs.
+  const timings = eligiblePlayers.flatMap((p) => {
+    const cardId = cardIdByPlayer.get(p.id);
+    if (!cardId) return [];
+    const firstClaim = firstClaimByCard.get(cardId);
+    if (firstClaim === undefined) return [];
+    return [
+      {
+        playerId: p.id,
+        firstClaimAt: firstClaim,
+        firstBingoAt: firstBingoByPlayer.get(p.id) ?? null,
+      },
+    ];
+  });
+  const fastest = fastestBingoWinners(timings);
+
+  // Unluckiest inputs: claims-to-bingo for bingoers, total claim count for non-bingoers.
+  const claimsToBingo = eligiblePlayers.flatMap((p) => {
+    const cardId = cardIdByPlayer.get(p.id);
+    if (!cardId) return [];
+    const firstBingoAt = firstBingoByPlayer.get(p.id);
+    if (firstBingoAt === undefined) {
+      return [
+        { playerId: p.id, claimsToBingo: totalClaimsByCard.get(cardId) ?? 0 },
+      ];
+    }
+    let n = 0;
+    for (const c of claims ?? []) {
+      if (c.card_id !== cardId) continue;
+      if (Date.parse(c.claimed_at) <= firstBingoAt) n++;
+    }
+    return [{ playerId: p.id, claimsToBingo: n }];
+  });
+  const unluckiest = unluckiestWinners(claimsToBingo);
+
+  // Insert awards (idempotent — re-running End Game produces the same set).
+  // prize_awards has no unique index for the end-of-game prizes (to allow
+  // ties), so we clear any prior rows before writing the fresh slate.
+  await supabase
+    .from("prize_awards")
+    .delete()
+    .eq("event_id", event.id)
+    .in("prize", ["fastest_bingo", "unluckiest"]);
+
+  for (const w of fastest) {
+    await supabase.from("prize_awards").insert({
+      event_id: event.id,
+      prize: "fastest_bingo",
+      player_id: w.playerId,
+      detail: { duration_ms: w.durationMs },
+    });
+  }
+  for (const w of unluckiest) {
+    await supabase.from("prize_awards").insert({
+      event_id: event.id,
+      prize: "unluckiest",
+      player_id: w.playerId,
+      detail: { claims_to_bingo: w.claimsToBingo },
+    });
+  }
+
+  revalidatePath(`/facilitate/${event.code}`);
   revalidatePath(`/admin/${event.code}`);
 }
 
