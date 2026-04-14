@@ -45,6 +45,7 @@ export function Scanner() {
             if (stoppedRef.current) return;
             stoppedRef.current = true;
             setStatus("decoded");
+            navigator.vibrate?.(20);
             try {
               await scanner.stop();
             } catch {

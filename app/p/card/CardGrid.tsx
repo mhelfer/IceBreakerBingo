@@ -130,6 +130,9 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
       if (body.bingo && !confettiFired.current) {
         confettiFired.current = true;
         fireBingoConfetti();
+        navigator.vibrate?.([60, 40, 60, 40, 120]);
+      } else {
+        navigator.vibrate?.(15);
       }
     } catch {
       setClaimError("network error — try again");
