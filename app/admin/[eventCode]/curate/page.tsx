@@ -117,35 +117,19 @@ export default async function CuratePage({
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav className="text-sm">
-        <a
-          href={`/admin/${event.code}`}
-          className="text-zinc-500 hover:text-zinc-900"
-        >
-          ← Back to event
-        </a>
-      </nav>
-
-      <header className="mt-4 flex items-baseline justify-between gap-4">
-        <h1 className="text-2xl font-semibold">{event.name} — Curate</h1>
-        <div className="font-mono text-sm text-zinc-500">
-          {event.code} · {event.state}
-        </div>
-      </header>
-
-      <p className="mt-4 text-sm text-zinc-600">
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-zinc-600">
         Review aggregated answers, tune trait wording, disable buckets that
         won't complete. Buckets with fewer than {MIN_MATCHERS} matchers are
         flagged uncompletable.
       </p>
       {!editable ? (
-        <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           Curation is locked. Unlock to edit trait templates.
         </div>
       ) : null}
       {editable && placeholderCount > 0 ? (
-        <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <b>{placeholderCount}</b> enabled{" "}
           {placeholderCount === 1 ? "trait still has" : "traits still have"}{" "}
           placeholder square text (e.g. <span className="font-mono">Q1: picked A</span>). Edit each one to something readable like <span className="font-mono">Likes pizza</span> before locking.
@@ -153,12 +137,10 @@ export default async function CuratePage({
       ) : null}
 
       {rosterCount != null ? (
-        <p className="mt-2 text-xs text-zinc-500">
-          Roster size: {rosterCount}
-        </p>
+        <p className="text-xs text-zinc-500">Roster size: {rosterCount}</p>
       ) : null}
 
-      <ol className="mt-6 flex flex-col gap-6">
+      <ol className="flex flex-col gap-6">
         {questions.map((q) => {
           const qTraits = (traitsByQuestion.get(q.id) ?? []).slice().sort(
             (a, b) => {
@@ -214,7 +196,7 @@ export default async function CuratePage({
         })}
       </ol>
 
-      <section className="mt-8 rounded border border-zinc-200 bg-zinc-50 p-4">
+      <section className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
         <h2 className="text-lg font-medium">Curation state</h2>
         {editable ? (
           <>
@@ -248,7 +230,7 @@ export default async function CuratePage({
           </form>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 

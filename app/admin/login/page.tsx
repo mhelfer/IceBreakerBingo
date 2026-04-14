@@ -1,8 +1,18 @@
+import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { AlertCircle } from "lucide-react";
 import { readSession } from "@/lib/session";
+import { Button } from "@/app/components/ui/Button";
+import { Card, CardBody } from "@/app/components/ui/Card";
+import { Input, Label } from "@/app/components/ui/Input";
 import { signIn, signUp } from "../actions";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Sign in · IceBreaker Bingo",
+};
 
 export default async function AdminLoginPage({
   searchParams,
@@ -16,67 +26,86 @@ export default async function AdminLoginPage({
   const isSignUp = mode === "signup";
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-12">
-      <h1 className="text-2xl font-semibold">
-        IceBreakerBingo · Facilitator
-      </h1>
-      <p className="mt-2 text-sm text-zinc-500">
-        {isSignUp ? "Create a facilitator account." : "Sign in to manage your events."}
-      </p>
+    <main className="flex min-h-dvh items-center justify-center bg-zinc-50/60 px-4 py-12">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+            IceBreaker Bingo
+          </h1>
+          <p className="mt-1 text-xs text-zinc-500">
+            {isSignUp
+              ? "Create a facilitator account."
+              : "Sign in to manage your events."}
+          </p>
+        </div>
 
-      {error ? (
-        <p className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-          {error}
+        <Card>
+          <CardBody className="flex flex-col gap-4 p-5">
+            {error ? (
+              <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : null}
+
+            <form
+              action={isSignUp ? signUp : signIn}
+              className="flex flex-col gap-3"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="login-email">Email</Label>
+                <Input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="login-password">Password</Label>
+                <Input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
+                  required
+                  minLength={8}
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="mt-1 w-full"
+              >
+                {isSignUp ? "Create account" : "Sign in"}
+              </Button>
+            </form>
+          </CardBody>
+        </Card>
+
+        <p className="mt-4 text-center text-xs text-zinc-500">
+          {isSignUp ? (
+            <>
+              Already have an account?{" "}
+              <Link href="/admin/login" className="font-medium text-zinc-900 hover:underline">
+                Sign in
+              </Link>
+            </>
+          ) : (
+            <>
+              New here?{" "}
+              <Link
+                href="/admin/login?mode=signup"
+                className="font-medium text-zinc-900 hover:underline"
+              >
+                Create an account
+              </Link>
+            </>
+          )}
         </p>
-      ) : null}
-
-      <form action={isSignUp ? signUp : signIn} className="mt-6 flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          <span>Email</span>
-          <input
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            className="rounded border border-zinc-300 px-3 py-2"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span>Password</span>
-          <input
-            name="password"
-            type="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
-            required
-            minLength={8}
-            className="rounded border border-zinc-300 px-3 py-2"
-          />
-        </label>
-        <button
-          type="submit"
-          className="mt-2 rounded bg-black px-4 py-2 text-white hover:bg-zinc-800"
-        >
-          {isSignUp ? "Create account" : "Sign in"}
-        </button>
-      </form>
-
-      <p className="mt-6 text-sm text-zinc-500">
-        {isSignUp ? (
-          <>
-            Already have an account?{" "}
-            <a href="/admin/login" className="underline">
-              Sign in
-            </a>
-          </>
-        ) : (
-          <>
-            New here?{" "}
-            <a href="/admin/login?mode=signup" className="underline">
-              Create an account
-            </a>
-          </>
-        )}
-      </p>
+      </div>
     </main>
   );
 }

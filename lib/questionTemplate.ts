@@ -61,6 +61,24 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
     cohort_prompt: (o) => `Compare notes on ${o} years in the trade.`,
   },
   {
+    prompt: "Daily-driver OS?",
+    type: "single",
+    options: ["macOS", "Linux", "Windows", "ChromeOS / other"],
+    cohort_square_text: (o) => `Runs ${o}`.slice(0, 36),
+    cohort_prompt: (o) => `Ask what pulled them to ${o}.`,
+  },
+  {
+    prompt: "Morning person or night owl?",
+    type: "binary",
+    options: ["Morning", "Night owl"],
+    cohort_square_text: (o) =>
+      o === "Morning" ? "Morning person" : "Night owl",
+    cohort_prompt: (o) =>
+      o === "Morning"
+        ? "Ask when they're most productive."
+        : "Ask about late-night coding sessions.",
+  },
+  {
     prompt: "What's your favorite debugging snack?",
     type: "text",
     discovery_square_text: "Learn someone's debug snack",

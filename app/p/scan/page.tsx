@@ -20,9 +20,15 @@ export default async function PlayerScanPage() {
   if (event.state !== "live") redirect("/p/not-yet");
 
   return (
-    <main className="mx-auto max-w-md px-4 pb-20 pt-4">
-      <header className="mb-3">
-        <h1 className="text-base font-semibold">Scan a teammate</h1>
+    <main className="mx-auto max-w-md px-4 pt-5 pb-28">
+      <header className="mb-4 text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+          Scan a teammate
+        </h1>
+        <p className="mt-1 text-xs text-zinc-500">
+          Aim at their <span className="font-medium text-zinc-700">My QR</span>{" "}
+          screen and hold steady.
+        </p>
       </header>
       <Scanner />
       <PlayerTabs active="scan" />

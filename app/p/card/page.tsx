@@ -26,14 +26,16 @@ export default async function PlayerCardPage() {
 
   if (player.absent) {
     return (
-      <main className="mx-auto max-w-md px-4 pb-20 pt-10 text-center">
-        <h1 className="text-xl font-semibold">No card for you</h1>
-        <p className="mt-3 text-sm text-zinc-600">
-          You were marked absent, so no card was generated. Flag down{" "}
-          the facilitator if that was a mistake.
-        </p>
+      <>
+        <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6 pb-24 text-center">
+          <h1 className="text-xl font-semibold text-zinc-900">No card for you</h1>
+          <p className="mt-3 text-sm text-zinc-600">
+            You were marked absent, so no card was generated. Flag down the
+            facilitator if that was a mistake.
+          </p>
+        </main>
         <PlayerTabs active="card" />
-      </main>
+      </>
     );
   }
 
@@ -45,13 +47,17 @@ export default async function PlayerCardPage() {
 
   if (!card) {
     return (
-      <main className="mx-auto max-w-md px-4 pb-20 pt-10 text-center">
-        <h1 className="text-xl font-semibold">Your card isn&apos;t ready</h1>
-        <p className="mt-3 text-sm text-zinc-600">
-          The facilitator hasn&apos;t started the game yet — hang tight.
-        </p>
+      <>
+        <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6 pb-24 text-center">
+          <h1 className="text-xl font-semibold text-zinc-900">
+            Your card isn&rsquo;t ready
+          </h1>
+          <p className="mt-3 text-sm text-zinc-600">
+            The facilitator hasn&rsquo;t started the game yet — hang tight.
+          </p>
+        </main>
         <PlayerTabs active="card" />
-      </main>
+      </>
     );
   }
 
@@ -104,23 +110,44 @@ export default async function PlayerCardPage() {
     };
   });
 
+  const claimedCount = squares.filter(
+    (s) => s.claimed && s.kind !== "free",
+  ).length;
+  const totalClaimable = squares.filter((s) => s.kind !== "free").length;
+
   return (
-    <main className="mx-auto max-w-md px-3 pb-20 pt-4">
-      <header className="mb-3 flex items-baseline justify-between">
-        <div>
-          <p className="text-xs text-zinc-500">{event.name}</p>
-          <h1 className="text-base font-semibold">{player.display_name}</h1>
+    <main className="mx-auto max-w-md px-3 pb-28 pt-4">
+      <header className="mb-3 flex items-start justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+            {event.name}
+          </p>
+          <h1 className="text-base font-semibold text-zinc-900">
+            {player.display_name}
+          </h1>
         </div>
-        <p className="font-mono text-xs text-zinc-500">
-          {event.code} · {event.state}
-        </p>
+        <div className="shrink-0 text-right">
+          <p className="text-[11px] font-semibold text-zinc-900">
+            {claimedCount}
+            <span className="text-zinc-400"> / {totalClaimable}</span>
+          </p>
+          <p className="text-[10px] text-zinc-500">claimed</p>
+        </div>
       </header>
 
-      <CardGrid squares={squares} />
+      <div className="mb-3 h-1 overflow-hidden rounded-full bg-zinc-100">
+        <div
+          className="h-full rounded-full bg-emerald-500 transition-all"
+          style={{
+            width: `${
+              totalClaimable === 0 ? 0 : (claimedCount / totalClaimable) * 100
+            }%`,
+          }}
+          aria-hidden
+        />
+      </div>
 
-      <p className="mt-4 text-center text-[11px] text-zinc-500">
-        🔖 cohort · 💬 discovery · ★ free
-      </p>
+      <CardGrid squares={squares} />
 
       <PlayerTabs active="card" />
     </main>

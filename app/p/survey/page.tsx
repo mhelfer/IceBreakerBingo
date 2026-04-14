@@ -1,3 +1,4 @@
+import { Lock } from "lucide-react";
 import { redirect } from "next/navigation";
 import { readSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -48,12 +49,16 @@ export default async function SurveyPage() {
   }));
 
   return (
-    <main className="mx-auto max-w-md px-4 py-6">
-      <header className="mb-4">
-        <p className="text-xs text-zinc-500">{event.name}</p>
-        <h1 className="text-xl font-semibold">Hi, {player.display_name} 👋</h1>
-        <p className="mt-2 text-xs text-zinc-500">
-          🔒 This is your private survey. Nobody else sees your answers.
+    <main className="mx-auto max-w-md px-4 pt-5">
+      <header className="mb-2">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+          {event.name}
+        </p>
+        <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-zinc-900">
+          Hi, {player.display_name}
+        </h1>
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-500">
+          <Lock size={11} /> Private — nobody else sees your answers.
         </p>
       </header>
       <SurveyForm questions={questions} initial={initial} />

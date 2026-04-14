@@ -3,9 +3,13 @@
 // Produces:
 //   - 1 facilitator (email + password: devpassword)
 //   - 1 event in state `survey_closed` with auto-generated trait templates
-//   - 24 players (6-per-bucket distribution) so dev testing tolerates 1-2
-//     absentees at the Start Game attendance gate without breaking the
-//     ≥ 3-matchers rule
+//     matching the built-in STARTER_QUESTIONS set (same prompts/options as
+//     "Load starter template" in the admin UI)
+//   - 28 players (round-robin distribution). 28 is the smallest multiple of
+//     7 (the widest cohort option list in STARTER_QUESTIONS — first
+//     programming language) ≥ 24, so every enabled cohort bucket sits at
+//     ≥ 4 matchers and tolerates a 1-absentee drop at Start Game without
+//     falling below the MIN_MATCHERS = 3 floor.
 //
 // Usage:
 //   SUPABASE_URL=http://127.0.0.1:54321 \
@@ -18,6 +22,8 @@ import type { Database } from "../lib/db-types.ts";
 import { hashPassword } from "../lib/password.ts";
 import { encodeSession } from "../lib/session-token.ts";
 import { generateEventCode, generate96BitToken } from "../lib/ids.ts";
+import { STARTER_QUESTIONS } from "../lib/questionTemplate.ts";
+import type { MatchRule } from "../lib/traits.ts";
 
 const supabase = createClient<Database>(
   process.env.SUPABASE_URL!,
@@ -25,44 +31,198 @@ const supabase = createClient<Database>(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-const PLAYER_COUNT = 24;
-const OPTIONS = ["A", "B", "C", "D"] as const;
-const QUESTION_COUNT = 8;
+const PLAYER_COUNT = 28;
 
-function pickOne(pi: number, qi: number): string {
-  const bucket = (pi + qi) % PLAYER_COUNT;
-  if (bucket < 6) return "A";
-  if (bucket < 12) return "B";
-  if (bucket < 18) return "C";
-  return "D";
+// Realistic text-answer pools per starter prompt. Keyed by prompt so if the
+// starter set is reordered or the question text is tweaked the match is still
+// obvious. Any text-type prompt missing from this map falls back to a generic
+// pool below.
+const TEXT_ANSWERS: Record<string, string[]> = {
+  "Where did you grow up?": [
+    "Austin, TX",
+    "Brooklyn, NY",
+    "Seattle, WA",
+    "Portland, OR",
+    "Denver, CO",
+    "small town in Vermont",
+    "rural Ohio",
+    "Toronto, Canada",
+    "outside Chicago",
+    "Dublin, Ireland",
+    "Lagos, Nigeria",
+    "Bangalore, India",
+    "São Paulo, Brazil",
+    "Berlin, Germany",
+    "Tokyo suburbs",
+    "Melbourne, Australia",
+    "a farm in Iowa",
+    "Miami, FL",
+    "Mexico City",
+    "northern California",
+    "Boston area",
+    "Edinburgh, Scotland",
+    "Nairobi, Kenya",
+    "Manila, Philippines",
+  ],
+  "What's your non-tech hobby?": [
+    "bread baking",
+    "bouldering",
+    "urban sketching",
+    "birdwatching",
+    "home roasting coffee",
+    "salsa dancing",
+    "pottery",
+    "trail running",
+    "woodworking",
+    "board game design",
+    "open-water swimming",
+    "film photography",
+    "gardening",
+    "ultimate frisbee",
+    "fermenting hot sauce",
+    "chess puzzles",
+    "touring coffee shops",
+    "stand-up paddleboarding",
+    "cooking Sichuan food",
+    "restoring vintage bikes",
+    "D&D campaigns",
+    "knitting socks",
+    "foraging mushrooms",
+    "amateur astronomy",
+  ],
+  "What's a weird or unexpected skill you have?": [
+    "can name every state capital in under 90s",
+    "perfect pitch",
+    "whistle with two fingers really loud",
+    "recite Pi to 120 digits",
+    "juggle four balls",
+    "identify birds by call",
+    "solve a Rubik's cube sub-2min",
+    "write mirror-image with either hand",
+    "tie a cherry stem with my tongue",
+    "wiggle ears independently",
+    "throw a boomerang",
+    "read upside-down fluently",
+    "do a standing backflip",
+    "play the theremin",
+    "fold a fitted sheet cleanly",
+    "remember every phone number I've ever had",
+    "can moonwalk on carpet",
+    "parallel park a 24ft trailer",
+    "sharpen knives freehand",
+    "unicycle",
+    "speak fluent Klingon",
+    "whistle two notes at once",
+    "draw a perfect freehand circle",
+    "throw playing cards into a hat across the room",
+  ],
+  "What's your favorite debugging snack?": [
+    "gummy bears",
+    "dark chocolate",
+    "trail mix",
+    "cold brew",
+    "popcorn",
+    "apple slices & peanut butter",
+    "sour patch kids",
+    "espresso shots",
+    "wasabi peas",
+    "string cheese",
+    "matcha latte",
+    "pretzels",
+    "almonds",
+    "skittles",
+    "kombucha",
+    "beef jerky",
+    "pickles",
+    "green tea",
+    "dried mango",
+    "goldfish crackers",
+    "ice water, honestly",
+    "peanut M&Ms",
+    "clementines",
+    "hot sauce on anything",
+  ],
+  "Dream side project?": [
+    "an offline-first recipe app",
+    "a newsletter about weird APIs",
+    "a tiny indie game",
+    "a custom mechanical keyboard firmware",
+    "a podcast about infrastructure war stories",
+    "an e-ink dashboard for the fridge",
+    "a music theory learning tool",
+    "an open-source home automation hub",
+    "a CLI for tracking reading habits",
+    "a plant-watering robot",
+    "a subway arrival display for my desk",
+    "a local-first note app",
+    "a birdwatching log with ML ID",
+    "a PCB business-card synth",
+    "a zine about old programming languages",
+    "a weather station on the roof",
+    "a text adventure engine",
+    "a habit tracker that actually sticks",
+    "an ambient-soundscape generator",
+    "a home wiki with spaced repetition",
+    "a CLI for baking timers",
+    "a SaaS for D&D DMs",
+    "a coffee-roast profile tracker",
+    "a Markdown-first blog engine",
+  ],
+  "What's a conference you've been to?": [
+    "Strange Loop",
+    "PyCon",
+    "KubeCon",
+    "JSConf",
+    "RustConf",
+    "GopherCon",
+    "AWS re:Invent",
+    "DockerCon",
+    "!!Con",
+    "RailsConf",
+    "DEF CON",
+    "Black Hat",
+    "GDC",
+    "PgConf",
+    "React Conf",
+    "Open Source Summit",
+    "QCon",
+    "DevOpsDays",
+    "ElixirConf",
+    "Config (Figma)",
+    "Cascadia JS",
+    "SRECon",
+    "FOSDEM",
+    "Monktoberfest",
+  ],
+};
+
+const GENERIC_TEXT_FALLBACK = [
+  "answer one",
+  "answer two",
+  "answer three",
+  "answer four",
+];
+
+// Round-robin picker for single/binary/numeric cohort answers. Offsetting by
+// qi keeps distribution uncorrelated across questions (no player ends up in
+// the "A" bucket for everything).
+function pickOption(pi: number, qi: number, options: string[]): string {
+  return options[(pi + qi * 3) % options.length];
 }
 
-const TALENTS = [
-  "balloon animals",
-  "competitive chess",
-  "unicycle",
-  "fire breathing",
-  "juggling",
-  "perfect pitch",
-  "speed cubing",
-  "origami",
-  "sourdough baking",
-  "yo-yo tricks",
-  "whistling songs",
-  "break dancing",
-  "card magic",
-  "mountain climbing",
-  "sword swallowing",
-  "crochet",
-  "tap dancing",
-  "beekeeping",
-  "archery",
-  "calligraphy",
-  "bird calls",
-  "tarot reading",
-  "knot tying",
-  "stand-up comedy",
-];
+// Deterministic multi-pick: each player picks exactly 2 options. This keeps
+// every option well above MIN_MATCHERS for reasonable option counts (n ≤ 8).
+function pickMulti(pi: number, qi: number, options: string[]): string[] {
+  const n = options.length;
+  const a = (pi + qi * 3) % n;
+  const b = (pi + qi * 3 + Math.max(1, Math.floor(n / 2))) % n;
+  return a === b ? [options[a]] : [options[a], options[b]];
+}
+
+function pickText(pi: number, prompt: string): string {
+  const pool = TEXT_ANSWERS[prompt] ?? GENERIC_TEXT_FALLBACK;
+  return pool[pi % pool.length];
+}
 
 const email = `dev+${Date.now()}@example.com`;
 const password = "devpassword";
@@ -88,10 +248,16 @@ const { data: ev, error: evErr } = await supabase
   .single();
 if (evErr || !ev) throw new Error(evErr?.message ?? "no event");
 
-// Players (all with survey_submitted_at set).
+function playerLabel(i: number): string {
+  // A..Z, then AA, AB, ... so we don't roll off into punctuation past Z.
+  if (i < 26) return String.fromCharCode(65 + i);
+  const hi = Math.floor(i / 26) - 1;
+  const lo = i % 26;
+  return `${String.fromCharCode(65 + hi)}${String.fromCharCode(65 + lo)}`;
+}
 const playerRows = Array.from({ length: PLAYER_COUNT }, (_, i) => ({
   event_id: ev.id,
-  display_name: `Player ${String.fromCharCode(65 + i)}`,
+  display_name: `Player ${playerLabel(i)}`,
   access_code: generate96BitToken(),
   qr_nonce: generate96BitToken(),
   survey_submitted_at: new Date().toISOString(),
@@ -102,87 +268,88 @@ const { data: players, error: pErr } = await supabase
   .select("id, display_name, access_code");
 if (pErr || !players) throw new Error(pErr?.message ?? "no players");
 
-// Questions: 8 single-select cohort + 1 free-text discovery.
-const cohortQuestionRows = Array.from({ length: QUESTION_COUNT }, (_, i) => ({
+// Insert questions from the built-in starter set.
+const questionRows = STARTER_QUESTIONS.map((q, i) => ({
   event_id: ev.id,
-  prompt: [
-    "First programming language?",
-    "Tabs vs spaces?",
-    "Favorite pizza topping?",
-    "Mountains or ocean?",
-    "Early bird or night owl?",
-    "Coffee or tea?",
-    "Cats or dogs?",
-    "Books or podcasts?",
-  ][i],
-  type: "single" as const,
-  options: [...OPTIONS],
+  prompt: q.prompt,
+  type: q.type,
+  options: q.options ?? null,
   position: i,
 }));
-const { data: cohortQs, error: cqErr } = await supabase
+const { data: insertedQs, error: qErr } = await supabase
   .from("survey_questions")
-  .insert(cohortQuestionRows)
+  .insert(questionRows)
   .select("id, position")
   .order("position");
-if (cqErr || !cohortQs) throw new Error(cqErr?.message ?? "no cohort qs");
+if (qErr || !insertedQs) throw new Error(qErr?.message ?? "no questions");
 
-const { data: talentQ, error: tqErr } = await supabase
-  .from("survey_questions")
-  .insert({
-    event_id: ev.id,
-    prompt: "What's your hidden talent?",
-    type: "text",
-    options: null,
-    position: QUESTION_COUNT,
-  })
-  .select("id")
-  .single();
-if (tqErr || !talentQ) throw new Error(tqErr?.message ?? "no talent q");
-
-// Trait templates (cohort per option + one discovery).
-const traitRows = [
-  ...cohortQs.flatMap((q, qi) =>
-    OPTIONS.map((opt) => ({
+// Build trait templates, mirroring forkStarterQuestions().
+const traitRows: {
+  event_id: string;
+  question_id: string;
+  kind: "cohort" | "discovery";
+  match_rule: MatchRule | null;
+  square_text: string;
+  conversation_prompt: string | null;
+  enabled: boolean;
+}[] = [];
+for (const row of insertedQs) {
+  const starter = STARTER_QUESTIONS[row.position];
+  if (!starter) continue;
+  if (starter.type === "text") {
+    traitRows.push({
       event_id: ev.id,
-      question_id: q.id,
-      kind: "cohort" as const,
-      match_rule: { op: "eq" as const, value: opt },
-      square_text: `Q${qi + 1}: picked ${opt}`.slice(0, 36),
-      conversation_prompt: `Ask them why ${opt}.`,
+      question_id: row.id,
+      kind: "discovery",
+      match_rule: null,
+      square_text: (
+        starter.discovery_square_text ?? `Learn: ${starter.prompt}`
+      ).slice(0, 36),
+      conversation_prompt: null,
       enabled: true,
-    })),
-  ),
-  {
-    event_id: ev.id,
-    question_id: talentQ.id,
-    kind: "discovery" as const,
-    match_rule: null,
-    square_text: "Learn a hidden talent",
-    conversation_prompt: null,
-    enabled: true,
-  },
-];
+    });
+  } else {
+    const op: MatchRule["op"] = starter.type === "multi" ? "includes" : "eq";
+    for (const opt of starter.options ?? []) {
+      traitRows.push({
+        event_id: ev.id,
+        question_id: row.id,
+        kind: "cohort",
+        match_rule: { op, value: opt },
+        square_text: (starter.cohort_square_text?.(opt) ?? opt).slice(0, 36),
+        conversation_prompt: starter.cohort_prompt?.(opt) ?? null,
+        enabled: true,
+      });
+    }
+  }
+}
 const { error: trErr } = await supabase
   .from("trait_templates")
   .insert(traitRows);
 if (trErr) throw new Error(trErr.message);
 
-// Responses.
+// Generate responses per player × question.
 const responses: Database["public"]["Tables"]["survey_responses"]["Insert"][] =
   [];
 for (let pi = 0; pi < players.length; pi++) {
-  for (let qi = 0; qi < cohortQs.length; qi++) {
+  for (let qi = 0; qi < insertedQs.length; qi++) {
+    const starter = STARTER_QUESTIONS[insertedQs[qi].position];
+    if (!starter) continue;
+    const opts = starter.options ?? [];
+    let value: string | string[];
+    if (starter.type === "text") {
+      value = pickText(pi, starter.prompt);
+    } else if (starter.type === "multi") {
+      value = pickMulti(pi, qi, opts);
+    } else {
+      value = pickOption(pi, qi, opts);
+    }
     responses.push({
       player_id: players[pi].id,
-      question_id: cohortQs[qi].id,
-      value: pickOne(pi, qi),
+      question_id: insertedQs[qi].id,
+      value,
     });
   }
-  responses.push({
-    player_id: players[pi].id,
-    question_id: talentQ.id,
-    value: TALENTS[pi],
-  });
 }
 const { error: rErr } = await supabase
   .from("survey_responses")

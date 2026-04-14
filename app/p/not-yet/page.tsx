@@ -1,5 +1,7 @@
+import { Clock } from "lucide-react";
 import { readSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { PlayerHero } from "../PlayerHero";
 
 export const dynamic = "force-dynamic";
 
@@ -24,30 +26,34 @@ export default async function NotYetPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-2xl">
-        {name ? <>Hi, {name} 👋</> : "IceBreaker Bingo"}
-      </h1>
-      {eventName ? (
-        <p className="mt-4 text-sm text-zinc-600">
-          {eventName}
+    <PlayerHero
+      icon={<Clock size={20} />}
+      tone="muted"
+      eyebrow={eventName ?? "IceBreaker Bingo"}
+      title={name ? `Hi, ${name}` : "Not quite yet"}
+      body={
+        <>
           {startsAt ? (
-            <>
-              {" "}starts{" "}
-              <time dateTime={startsAt}>
-                {new Date(startsAt).toLocaleString()}
+            <p>
+              The game starts{" "}
+              <time dateTime={startsAt} className="font-medium text-zinc-800">
+                {new Date(startsAt).toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
               </time>
-            </>
-          ) : null}
-          .
-        </p>
-      ) : null}
-      <p className="mt-6 text-sm text-zinc-600">
-        Re-open this link when the game starts.
-      </p>
-      <p className="mt-6 text-xs text-zinc-400">
-        This link is personal — please don't share it.
-      </p>
-    </main>
+              .
+            </p>
+          ) : (
+            <p>The facilitator hasn&rsquo;t started the game yet.</p>
+          )}
+          <p className="mt-2">Re-open this link when things kick off.</p>
+        </>
+      }
+      footer="This link is personal — please don't share it."
+    />
   );
 }

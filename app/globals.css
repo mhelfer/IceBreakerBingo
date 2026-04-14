@@ -2,25 +2,46 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0a0a0a;
+  --muted: #f4f4f5;
+  --border: #e4e4e7;
+  --ring: #18181b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Event-phase colors (foreground / background pairs) */
+  --color-phase-draft-fg: #3f3f46;
+  --color-phase-draft-bg: #f4f4f5;
+  --color-phase-survey-open-fg: #075985;
+  --color-phase-survey-open-bg: #e0f2fe;
+  --color-phase-survey-closed-fg: #92400e;
+  --color-phase-survey-closed-bg: #fef3c7;
+  --color-phase-curation-locked-fg: #5b21b6;
+  --color-phase-curation-locked-bg: #ede9fe;
+  --color-phase-live-fg: #065f46;
+  --color-phase-live-bg: #d1fae5;
+  --color-phase-ended-fg: #18181b;
+  --color-phase-ended-bg: #e4e4e7;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tighter focus rings that match the neutral palette */
+:where(button, a, input, textarea, select, [role="button"]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

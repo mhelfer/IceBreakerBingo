@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { upsertAnswer, submitSurvey } from "./actions";
 
 export type SurveyQuestion = {
@@ -25,6 +26,12 @@ function normalize(v: unknown): string | string[] | null {
   return String(v);
 }
 
+function isAnswered(v: string | string[] | null): boolean {
+  if (v == null) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return v.trim().length > 0;
+}
+
 export function SurveyForm({
   questions,
   initial,
@@ -35,7 +42,11 @@ export function SurveyForm({
   const [answers, setAnswers] = useState<Record<string, AnswerState>>(() => {
     const m: Record<string, AnswerState> = {};
     for (const a of initial) {
-      m[a.id] = { value: normalize(a.value), saving: false, saved: a.value != null };
+      m[a.id] = {
+        value: normalize(a.value),
+        saving: false,
+        saved: a.value != null,
+      };
     }
     return m;
   });
@@ -84,108 +95,166 @@ export function SurveyForm({
     });
   }
 
-  const totalAnswered = Object.values(answers).filter(
-    (a) => a.saved || (a.value != null && !(Array.isArray(a.value) && a.value.length === 0)),
-  ).length;
+  const totalAnswered = questions.filter((q) => {
+    const a = answers[q.id];
+    return a && isAnswered(a.value);
+  }).length;
+  const pct = questions.length === 0 ? 0 : (totalAnswered / questions.length) * 100;
   const allAnswered = totalAnswered === questions.length;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="text-xs text-zinc-500">
-        {totalAnswered} / {questions.length} answered
+    <>
+      <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur">
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="font-medium text-zinc-900">
+            {totalAnswered} / {questions.length} answered
+          </span>
+          <span className="text-zinc-500">
+            {allAnswered ? "Ready to submit" : "Keep going"}
+          </span>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100">
+          <div
+            className="h-full rounded-full bg-emerald-500 transition-all"
+            style={{ width: `${pct}%` }}
+            aria-hidden
+          />
+        </div>
       </div>
 
-      {questions.map((q, idx) => {
-        const a = answers[q.id] ?? { value: null, saving: false, saved: false };
-        return (
-          <section
-            key={q.id}
-            className="rounded border border-zinc-200 bg-white p-4"
+      <div className="flex flex-col gap-4 pt-5 pb-40">
+        {questions.map((q, idx) => {
+          const a = answers[q.id] ?? { value: null, saving: false, saved: false };
+          return (
+            <section
+              key={q.id}
+              className="rounded-lg border border-zinc-200 bg-white p-4"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-sm font-medium text-zinc-900">
+                  <span className="mr-1.5 text-zinc-400">{idx + 1}.</span>
+                  {q.prompt}
+                </p>
+                <span className="shrink-0 text-[11px] text-zinc-400">
+                  {a.saving ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Loader2 size={10} className="animate-spin" /> saving
+                    </span>
+                  ) : a.saved ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-600">
+                      <Check size={10} /> saved
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+
+              <div className="mt-3">
+                {q.type === "text" ? (
+                  <textarea
+                    rows={3}
+                    value={typeof a.value === "string" ? a.value : ""}
+                    onChange={(e) => update(q, e.target.value)}
+                    onBlur={(e) => update(q, e.target.value)}
+                    className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                    placeholder="Type your answer"
+                  />
+                ) : q.type === "single" ||
+                  q.type === "binary" ||
+                  q.type === "numeric_bucket" ? (
+                  <div className="flex flex-col gap-1.5">
+                    {(q.options ?? []).map((opt) => {
+                      const selected = a.value === opt;
+                      return (
+                        <label
+                          key={opt}
+                          className={[
+                            "flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2.5 text-sm transition",
+                            selected
+                              ? "border-zinc-900 bg-zinc-900 text-white"
+                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50",
+                          ].join(" ")}
+                        >
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={q.id}
+                              value={opt}
+                              checked={selected}
+                              onChange={() => update(q, opt)}
+                              className="sr-only"
+                            />
+                            {opt}
+                          </span>
+                          {selected ? <Check size={14} /> : null}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : q.type === "multi" ? (
+                  <div className="flex flex-col gap-1.5">
+                    {(q.options ?? []).map((opt) => {
+                      const arr = Array.isArray(a.value) ? a.value : [];
+                      const checked = arr.includes(opt);
+                      return (
+                        <label
+                          key={opt}
+                          className={[
+                            "flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2.5 text-sm transition",
+                            checked
+                              ? "border-zinc-900 bg-zinc-900 text-white"
+                              : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50",
+                          ].join(" ")}
+                        >
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...arr, opt]
+                                  : arr.filter((x) => x !== opt);
+                                update(q, next);
+                              }}
+                              className="sr-only"
+                            />
+                            {opt}
+                          </span>
+                          {checked ? <Check size={14} /> : null}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] backdrop-blur">
+        <div className="mx-auto flex max-w-md flex-col gap-2">
+          {missing && missing.length > 0 ? (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <AlertCircle size={12} className="mt-0.5 shrink-0" />
+              <span>Answer these first: {missing.join(", ")}</span>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!allAnswered || submitting}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <div className="flex items-baseline justify-between">
-              <p className="text-sm font-medium">
-                <span className="text-zinc-400">{idx + 1}.</span> {q.prompt}
-              </p>
-              <span className="text-xs text-zinc-400">
-                {a.saving ? "saving…" : a.saved ? "saved ✓" : ""}
-              </span>
-            </div>
-
-            <div className="mt-3">
-              {q.type === "text" ? (
-                <textarea
-                  rows={3}
-                  value={typeof a.value === "string" ? a.value : ""}
-                  onChange={(e) => update(q, e.target.value)}
-                  onBlur={(e) => update(q, e.target.value)}
-                  className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-                  placeholder="Type your answer"
-                />
-              ) : q.type === "single" ||
-                q.type === "binary" ||
-                q.type === "numeric_bucket" ? (
-                <div className="flex flex-col gap-1">
-                  {(q.options ?? []).map((opt) => (
-                    <label
-                      key={opt}
-                      className="flex cursor-pointer items-center gap-2 rounded border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
-                    >
-                      <input
-                        type="radio"
-                        name={q.id}
-                        value={opt}
-                        checked={a.value === opt}
-                        onChange={() => update(q, opt)}
-                      />
-                      {opt}
-                    </label>
-                  ))}
-                </div>
-              ) : q.type === "multi" ? (
-                <div className="flex flex-col gap-1">
-                  {(q.options ?? []).map((opt) => {
-                    const arr = Array.isArray(a.value) ? a.value : [];
-                    const checked = arr.includes(opt);
-                    return (
-                      <label
-                        key={opt}
-                        className="flex cursor-pointer items-center gap-2 rounded border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            const next = e.target.checked
-                              ? [...arr, opt]
-                              : arr.filter((x) => x !== opt);
-                            update(q, next);
-                          }}
-                        />
-                        {opt}
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-          </section>
-        );
-      })}
-
-      {missing && missing.length > 0 ? (
-        <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          Answer these first: {missing.join(", ")}
+            {submitting ? (
+              <>
+                <Loader2 size={14} className="animate-spin" /> Submitting…
+              </>
+            ) : (
+              "Submit survey"
+            )}
+          </button>
         </div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={onSubmit}
-        disabled={!allAnswered || submitting}
-        className="rounded bg-black px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {submitting ? "Submitting…" : "Submit survey"}
-      </button>
-    </div>
+      </div>
+    </>
   );
 }

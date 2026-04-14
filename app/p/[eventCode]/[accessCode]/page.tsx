@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { Clock } from "lucide-react";
 import { readSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { PlayerHero } from "../../PlayerHero";
 
 export const dynamic = "force-dynamic";
 
@@ -34,28 +36,40 @@ export default async function PlayerEntryPage() {
     redirect("/p/card");
   }
 
-  // draft / survey_closed / curation_locked → render inline so the URL stays.
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-2xl">Hi, {player.display_name} 👋</h1>
-      <p className="mt-4 text-sm text-zinc-600">
-        {event.name}
-        {event.starts_at ? (
-          <>
-            {" "}starts{" "}
-            <time dateTime={event.starts_at}>
-              {new Date(event.starts_at).toLocaleString()}
-            </time>
-          </>
-        ) : null}
-        .
-      </p>
-      <p className="mt-6 text-sm text-zinc-600">
-        Reload this page when the game starts to grab your bingo card.
-      </p>
-      <p className="mt-6 text-xs text-zinc-400">
-        This link is personal — please don&apos;t share it.
-      </p>
-    </main>
+    <PlayerHero
+      icon={<Clock size={20} />}
+      tone="muted"
+      eyebrow={event.name}
+      title={`Hi, ${player.display_name}`}
+      body={
+        <>
+          {event.starts_at ? (
+            <p>
+              The game starts{" "}
+              <time
+                dateTime={event.starts_at}
+                className="font-medium text-zinc-800"
+              >
+                {new Date(event.starts_at).toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </time>
+              .
+            </p>
+          ) : (
+            <p>The facilitator hasn&rsquo;t started the game yet.</p>
+          )}
+          <p className="mt-2">
+            Reload this page when the game starts to grab your bingo card.
+          </p>
+        </>
+      }
+      footer="This link is personal — please don't share it."
+    />
   );
 }

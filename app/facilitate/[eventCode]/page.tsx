@@ -1,6 +1,22 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import {
+  Award,
+  ChevronLeft,
+  CircleSlash,
+  Clock,
+  Flame,
+  Medal,
+  Radio,
+  Square,
+  Target,
+  Trophy,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { readSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { buttonClass } from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 import {
   endGame,
   setReuseUnlocked,
@@ -17,16 +33,25 @@ type Prize =
   | "fastest_bingo"
   | "unluckiest";
 
-const LIVE_PRIZES: { key: Prize; label: string }[] = [
-  { key: "first_across", label: "🥇 First Across" },
-  { key: "first_down", label: "🥇 First Down" },
-  { key: "first_diagonal", label: "🥇 First Diagonal" },
-  { key: "first_blackout", label: "🥇 First Blackout" },
-];
+const PRIZE_META: Record<
+  Prize,
+  { label: string; icon: ComponentType<{ size?: number; className?: string }>; group: "live" | "end" }
+> = {
+  first_across: { label: "First across", icon: Medal, group: "live" },
+  first_down: { label: "First down", icon: Medal, group: "live" },
+  first_diagonal: { label: "First diagonal", icon: Medal, group: "live" },
+  first_blackout: { label: "First blackout", icon: Trophy, group: "live" },
+  fastest_bingo: { label: "Fastest bingo", icon: Flame, group: "end" },
+  unluckiest: { label: "Unluckiest", icon: Target, group: "end" },
+};
 
-const END_PRIZES: { key: Prize; label: string }[] = [
-  { key: "fastest_bingo", label: "⏱ Fastest Bingo" },
-  { key: "unluckiest", label: "🎯 Unluckiest" },
+const PRIZE_ORDER: Prize[] = [
+  "first_across",
+  "first_down",
+  "first_diagonal",
+  "first_blackout",
+  "fastest_bingo",
+  "unluckiest",
 ];
 
 function fmtTime(iso: string): string {
@@ -67,16 +92,25 @@ export default async function FacilitateLivePage({
     redirect(`/admin/${event.code}`);
   }
 
-  const [
-    { data: players },
-    { data: claims },
-    { data: bingos },
-    { data: awards },
-  ] = await Promise.all([
+  const [{ data: players }, { data: awards }] = await Promise.all([
     supabase
       .from("players")
       .select("id, display_name, absent")
       .eq("event_id", event.id),
+    supabase
+      .from("prize_awards")
+      .select("prize, player_id, awarded_at, detail")
+      .eq("event_id", event.id),
+  ]);
+
+  const playerIds = (players ?? []).map((p) => p.id);
+  const { data: cardRows } = await supabase
+    .from("cards")
+    .select("id, player_id")
+    .in("player_id", playerIds.length ? playerIds : ["00000000-0000-0000-0000-000000000000"]);
+  const cardIds = (cardRows ?? []).map((c) => c.id);
+
+  const [{ data: claims }, { data: allClaims }, { data: bingos }] = await Promise.all([
     supabase
       .from("claims")
       .select(
@@ -84,63 +118,30 @@ export default async function FacilitateLivePage({
       )
       .in(
         "card_id",
-        (
-          await supabase
-            .from("cards")
-            .select("id")
-            .in(
-              "player_id",
-              (
-                await supabase
-                  .from("players")
-                  .select("id")
-                  .eq("event_id", event.id)
-              ).data?.map((p) => p.id) ?? [],
-            )
-        ).data?.map((c) => c.id) ?? ["00000000-0000-0000-0000-000000000000"],
+        cardIds.length ? cardIds : ["00000000-0000-0000-0000-000000000000"],
       )
       .order("claimed_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("claims")
+      .select("card_id, cards(player_id)")
+      .in(
+        "card_id",
+        cardIds.length ? cardIds : ["00000000-0000-0000-0000-000000000000"],
+      ),
     supabase
       .from("bingos")
       .select("id, player_id, line_type, line_index, completed_at")
       .in(
         "player_id",
-        (
-          await supabase
-            .from("players")
-            .select("id")
-            .eq("event_id", event.id)
-        ).data?.map((p) => p.id) ?? [],
+        playerIds.length ? playerIds : ["00000000-0000-0000-0000-000000000000"],
       )
       .order("completed_at", { ascending: false }),
-    supabase
-      .from("prize_awards")
-      .select("prize, player_id, awarded_at, detail")
-      .eq("event_id", event.id),
   ]);
 
   const playerById = new Map(
     (players ?? []).map((p) => [p.id, p.display_name]),
   );
-
-  // Claim counts per player — from cards.player_id via the claims we just loaded.
-  // The activity-feed query above is limited to 20 rows, so for totals we re-query.
-  const { data: allClaims } = await supabase
-    .from("claims")
-    .select("card_id, cards(player_id)")
-    .in(
-      "card_id",
-      (
-        await supabase
-          .from("cards")
-          .select("id")
-          .in(
-            "player_id",
-            (players ?? []).map((p) => p.id),
-          )
-      ).data?.map((c) => c.id) ?? ["00000000-0000-0000-0000-000000000000"],
-    );
 
   const claimsPerPlayer = new Map<string, number>();
   for (const c of allClaims ?? []) {
@@ -176,193 +177,305 @@ export default async function FacilitateLivePage({
   const isLive = event.state === "live";
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
+    <div className="min-h-screen bg-zinc-50/40">
       {isLive ? <AutoRefresh /> : null}
 
-      <nav className="text-sm">
-        <a href={`/admin/${event.code}`} className="text-zinc-500 hover:text-zinc-900">
-          ← Event dashboard
-        </a>
-      </nav>
+      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6">
+          <Link
+            href={`/admin/${event.code}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-900"
+          >
+            <ChevronLeft size={14} /> Event dashboard
+          </Link>
+          <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">
+                  {event.name}
+                </h1>
+                <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 font-mono text-xs text-zinc-600">
+                  {event.code}
+                </span>
+                <LiveStatusPill isLive={isLive} />
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">
+                {event.started_at
+                  ? `Started ${fmtTime(event.started_at)}`
+                  : "Not yet started"}
+                {event.ended_at ? ` · Ended ${fmtTime(event.ended_at)}` : ""}
+              </p>
+            </div>
 
-      <header className="mt-3 flex items-baseline justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">{event.name}</h1>
-          <p className="text-sm text-zinc-500">
-            {isLive ? "🟢 LIVE" : "🔴 ENDED"} ·{" "}
-            {event.started_at ? `started ${fmtTime(event.started_at)}` : "—"}
-            {event.ended_at ? ` · ended ${fmtTime(event.ended_at)}` : ""}
-          </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-zinc-500">
+                {totalClaims} claims · {totalBingos} bingos · {playerCount} players
+              </span>
+              {isLive ? (
+                <form action={endGame.bind(null, event.code)}>
+                  <button
+                    type="submit"
+                    className={buttonClass("danger", "md")}
+                    title="Ends the game — cards freeze and end-of-game prizes are awarded."
+                  >
+                    <Square size={12} /> End game
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          </div>
         </div>
-        <div className="font-mono text-sm text-zinc-500">{event.code}</div>
       </header>
 
-      <section className="mt-6 rounded border border-zinc-200 p-4">
-        <h2 className="text-lg font-medium">Prize slots</h2>
-        <ul className="mt-3 divide-y divide-zinc-200">
-          {[...LIVE_PRIZES, ...END_PRIZES].map((p) => {
-            const rows = awardByPrize.get(p.key) ?? [];
-            return (
-              <li
-                key={p.key}
-                className="flex items-baseline justify-between gap-3 py-2 text-sm"
-              >
-                <span className="font-medium">{p.label}</span>
-                <span className="text-right text-zinc-700">
-                  {rows.length === 0 ? (
-                    <span className="text-zinc-400">
-                      {p.key === "fastest_bingo" || p.key === "unluckiest"
-                        ? isLive
-                          ? "(end of game)"
-                          : "—"
-                        : "— waiting —"}
-                    </span>
-                  ) : (
-                    rows.map((r, i) => (
-                      <span key={i} className="ml-2">
-                        {playerById.get(r.player_id) ?? "?"}
-                        {p.key === "fastest_bingo" &&
-                        r.detail &&
-                        typeof r.detail === "object" &&
-                        "duration_ms" in r.detail
-                          ? ` · ${fmtDuration(Number((r.detail as { duration_ms: number }).duration_ms))}`
-                          : null}
-                        {p.key === "unluckiest" &&
-                        r.detail &&
-                        typeof r.detail === "object" &&
-                        "claims_to_bingo" in r.detail
-                          ? ` · ${(r.detail as { claims_to_bingo: number }).claims_to_bingo} claims`
-                          : null}
-                        {["first_across", "first_down", "first_diagonal", "first_blackout"].includes(p.key)
-                          ? ` · ${fmtTime(r.awarded_at)}`
-                          : null}
-                      </span>
-                    ))
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {isLive ? (
-        <section className="mt-6 rounded border border-zinc-200 p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-medium">Reuse toggle</h2>
-            <span className="text-xs text-zinc-500">
-              {event.reuse_unlocked
-                ? "ON — duplicates allowed"
-                : "OFF — one teammate per card"}
-            </span>
-          </div>
-          <form
-            action={setReuseUnlocked.bind(
-              null,
-              event.code,
-              !event.reuse_unlocked,
-            )}
-            className="mt-3"
-          >
-            <button
-              type="submit"
-              className={`rounded px-4 py-2 text-sm text-white ${
-                event.reuse_unlocked
-                  ? "bg-zinc-600 hover:bg-zinc-700"
-                  : "bg-amber-600 hover:bg-amber-700"
-              }`}
-            >
-              {event.reuse_unlocked ? "Turn reuse OFF" : "Turn reuse ON"}
-            </button>
-          </form>
-        </section>
-      ) : null}
-
-      <section className="mt-6 rounded border border-zinc-200 p-4">
-        <h2 className="text-lg font-medium">Claims per player (top 10)</h2>
-        {topClaimers.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500">No claims yet.</p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-1 text-sm">
-            {topClaimers.map((p) => (
-              <li key={p.id} className="flex items-center gap-3">
-                <span className="w-40 truncate">{p.display_name}</span>
-                <span
-                  className="h-3 rounded bg-zinc-800"
-                  style={{
-                    width: `${Math.max(4, (p.count / maxClaims) * 320)}px`,
-                  }}
-                  aria-hidden
-                />
-                <span className="font-mono text-xs text-zinc-500">
-                  {p.count}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="mt-6 rounded border border-zinc-200 p-4">
-        <h2 className="text-lg font-medium">Activity feed</h2>
-        {(claims ?? []).length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500">No claims yet.</p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-1 text-xs">
-            {(claims ?? []).map((c) => {
-              const card = Array.isArray(c.cards) ? c.cards[0] : c.cards;
-              const scannerName = card
-                ? playerById.get(card.player_id) ?? "?"
-                : "?";
-              const via = Array.isArray(c.players) ? c.players[0] : c.players;
-              const tt = Array.isArray(c.trait_templates)
-                ? c.trait_templates[0]
-                : c.trait_templates;
-              const bingoHere = (bingos ?? []).some(
-                (b) =>
-                  Math.abs(
-                    Date.parse(b.completed_at) - Date.parse(c.claimed_at),
-                  ) < 1000 && card?.player_id === b.player_id,
-              );
+      <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6">
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            Prize slots
+          </h2>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {PRIZE_ORDER.map((key) => {
+              const meta = PRIZE_META[key];
+              const Icon = meta.icon;
+              const rows = awardByPrize.get(key) ?? [];
+              const awarded = rows.length > 0;
               return (
-                <li key={c.id} className="flex gap-2">
-                  <span className="font-mono text-zinc-400">
-                    {fmtTime(c.claimed_at)}
-                  </span>
-                  <span>
-                    <b>{scannerName}</b> claimed &ldquo;
-                    {tt?.square_text ?? "?"}&rdquo; via{" "}
-                    {via?.display_name ?? "?"}
-                    {bingoHere ? " → BINGO!" : ""}
-                  </span>
+                <li key={key}>
+                  <Card className="h-full p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={[
+                            "inline-flex h-8 w-8 items-center justify-center rounded-md",
+                            awarded
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-zinc-100 text-zinc-400",
+                          ].join(" ")}
+                        >
+                          <Icon size={16} />
+                        </span>
+                        <div>
+                          <h3 className="text-sm font-semibold text-zinc-900">
+                            {meta.label}
+                          </h3>
+                          <p className="text-[11px] text-zinc-500">
+                            {meta.group === "end"
+                              ? "Awarded at end of game"
+                              : "Awarded during play"}
+                          </p>
+                        </div>
+                      </div>
+                      {awarded ? (
+                        <Award size={14} className="text-amber-600" />
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 text-sm">
+                      {rows.length === 0 ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
+                          <CircleSlash size={12} />
+                          {meta.group === "end"
+                            ? isLive
+                              ? "Awarded at end"
+                              : "Not awarded"
+                            : "Waiting…"}
+                        </span>
+                      ) : (
+                        <ul className="flex flex-col gap-1">
+                          {rows.map((r, i) => (
+                            <li key={i} className="text-zinc-800">
+                              <span className="font-medium">
+                                {playerById.get(r.player_id) ?? "?"}
+                              </span>
+                              {key === "fastest_bingo" &&
+                              r.detail &&
+                              typeof r.detail === "object" &&
+                              "duration_ms" in r.detail ? (
+                                <span className="ml-2 text-xs text-zinc-500">
+                                  {fmtDuration(
+                                    Number(
+                                      (r.detail as { duration_ms: number })
+                                        .duration_ms,
+                                    ),
+                                  )}
+                                </span>
+                              ) : null}
+                              {key === "unluckiest" &&
+                              r.detail &&
+                              typeof r.detail === "object" &&
+                              "claims_to_bingo" in r.detail ? (
+                                <span className="ml-2 text-xs text-zinc-500">
+                                  {
+                                    (r.detail as { claims_to_bingo: number })
+                                      .claims_to_bingo
+                                  }{" "}
+                                  claims
+                                </span>
+                              ) : null}
+                              {meta.group === "live" ? (
+                                <span className="ml-2 font-mono text-xs text-zinc-400">
+                                  {fmtTime(r.awarded_at)}
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </Card>
                 </li>
               );
             })}
           </ul>
-        )}
-      </section>
+        </section>
 
-      <section className="mt-6 rounded border border-zinc-200 bg-zinc-50 p-4">
-        <div className="flex items-baseline justify-between">
-          <div className="text-sm text-zinc-600">
-            {totalClaims} claims · {totalBingos} bingos · {playerCount} players
-          </div>
-          {isLive ? (
-            <form action={endGame.bind(null, event.code)}>
-              <button
-                type="submit"
-                className="rounded bg-red-700 px-4 py-2 text-sm text-white hover:bg-red-800"
-              >
-                End Game ■
-              </button>
-            </form>
-          ) : (
-            <span className="text-sm font-medium text-red-700">
-              Game ended
-            </span>
-          )}
+        {isLive ? (
+          <ReuseToggleCard
+            eventCode={event.code}
+            reuseUnlocked={event.reuse_unlocked}
+          />
+        ) : null}
+
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <Card className="p-4">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                Top claimers
+              </h2>
+              <span className="text-xs text-zinc-400">top 10</span>
+            </div>
+            {topClaimers.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">No claims yet.</p>
+            ) : (
+              <ul className="mt-3 flex flex-col gap-1.5 text-sm">
+                {topClaimers.map((p) => (
+                  <li key={p.id} className="flex items-center gap-3">
+                    <span className="w-32 truncate text-zinc-800">
+                      {p.display_name}
+                    </span>
+                    <span
+                      className="h-2 rounded-full bg-zinc-800"
+                      style={{
+                        width: `${Math.max(4, (p.count / maxClaims) * 240)}px`,
+                      }}
+                      aria-hidden
+                    />
+                    <span className="ml-auto font-mono text-xs text-zinc-500">
+                      {p.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card className="p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Activity
+            </h2>
+            {(claims ?? []).length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">No claims yet.</p>
+            ) : (
+              <ul className="mt-3 flex flex-col gap-2 text-sm">
+                {(claims ?? []).map((c) => {
+                  const card = Array.isArray(c.cards) ? c.cards[0] : c.cards;
+                  const scannerName = card
+                    ? playerById.get(card.player_id) ?? "?"
+                    : "?";
+                  const via = Array.isArray(c.players) ? c.players[0] : c.players;
+                  const tt = Array.isArray(c.trait_templates)
+                    ? c.trait_templates[0]
+                    : c.trait_templates;
+                  const bingoHere = (bingos ?? []).some(
+                    (b) =>
+                      Math.abs(
+                        Date.parse(b.completed_at) - Date.parse(c.claimed_at),
+                      ) < 1000 && card?.player_id === b.player_id,
+                  );
+                  return (
+                    <li key={c.id} className="flex gap-2 leading-snug">
+                      <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[11px] text-zinc-400">
+                        <Clock size={10} />
+                        {fmtTime(c.claimed_at)}
+                      </span>
+                      <span className="text-zinc-700">
+                        <span className="font-medium text-zinc-900">
+                          {scannerName}
+                        </span>{" "}
+                        claimed &ldquo;
+                        <span className="italic">{tt?.square_text ?? "?"}</span>
+                        &rdquo; via{" "}
+                        <span className="font-medium text-zinc-900">
+                          {via?.display_name ?? "?"}
+                        </span>
+                        {bingoHere ? (
+                          <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                            <Trophy size={9} /> Bingo
+                          </span>
+                        ) : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function LiveStatusPill({ isLive }: { isLive: boolean }) {
+  if (isLive) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+        <span className="relative inline-flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
+        </span>
+        Live
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+      <Square size={10} /> Ended
+    </span>
+  );
+}
+
+function ReuseToggleCard({
+  eventCode,
+  reuseUnlocked,
+}: {
+  eventCode: string;
+  reuseUnlocked: boolean;
+}) {
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="flex items-start gap-3">
+        <Radio size={16} className="mt-0.5 text-zinc-400" />
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-900">
+            Reuse teammates
+          </h2>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            {reuseUnlocked
+              ? "ON — same teammate can satisfy multiple squares."
+              : "OFF — one teammate per card (default)."}
+          </p>
         </div>
-      </section>
-    </main>
+      </div>
+      <form
+        action={setReuseUnlocked.bind(null, eventCode, !reuseUnlocked)}
+      >
+        <button
+          type="submit"
+          className={buttonClass(reuseUnlocked ? "secondary" : "primary", "sm")}
+        >
+          {reuseUnlocked ? "Turn off reuse" : "Turn on reuse"}
+        </button>
+      </form>
+    </Card>
   );
 }

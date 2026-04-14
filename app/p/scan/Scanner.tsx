@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CameraOff, Check, Loader2 } from "lucide-react";
 import type { Html5Qrcode } from "html5-qrcode";
 
-// Shape we stash in sessionStorage for /p/card's picker mode to pick up.
 type PickerPayload = {
   scanned: { id: string; displayName: string };
   result: "eligible" | "already_used" | "none";
@@ -57,7 +57,7 @@ export function Scanner() {
             // ignore per-frame decode failures
           },
         );
-      } catch (e) {
+      } catch {
         if (!cancelled) {
           setError(
             "Couldn't start the camera. In Safari: tap AA → Website Settings → Camera → Allow, then reload.",
@@ -101,33 +101,55 @@ export function Scanner() {
     };
   }, [router]);
 
+  if (error) {
+    return (
+      <div className="mx-auto flex max-w-sm flex-col items-center gap-3 rounded-xl border border-zinc-200 bg-white p-6 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700">
+          <CameraOff size={20} />
+        </span>
+        <h2 className="text-sm font-semibold text-zinc-900">Camera blocked</h2>
+        <p className="text-xs leading-relaxed text-zinc-600">{error}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-xs font-medium text-zinc-900 hover:bg-zinc-50"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-3">
-      <div
-        id={SCANNER_ELEMENT_ID}
-        className="mx-auto aspect-square w-full max-w-sm overflow-hidden rounded bg-black"
-      />
-      {status === "booting" ? (
-        <p className="text-center text-xs text-zinc-500">Starting camera…</p>
-      ) : status === "scanning" ? (
-        <p className="text-center text-xs text-zinc-500">
-          Point at your teammate&apos;s My QR screen.
-        </p>
-      ) : (
-        <p className="text-center text-xs text-zinc-500">Decoded — loading…</p>
-      )}
-      {error ? (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-          {error}
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="ml-2 underline"
-          >
-            Retry
-          </button>
+    <div className="flex flex-col gap-3">
+      <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-2xl bg-black shadow-sm">
+        <div id={SCANNER_ELEMENT_ID} className="h-full w-full" />
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          aria-hidden
+        >
+          <div className="relative h-[62%] w-[62%]">
+            <span className="absolute left-0 top-0 h-6 w-6 border-l-2 border-t-2 border-white/90 rounded-tl" />
+            <span className="absolute right-0 top-0 h-6 w-6 border-r-2 border-t-2 border-white/90 rounded-tr" />
+            <span className="absolute bottom-0 left-0 h-6 w-6 border-b-2 border-l-2 border-white/90 rounded-bl" />
+            <span className="absolute bottom-0 right-0 h-6 w-6 border-b-2 border-r-2 border-white/90 rounded-br" />
+          </div>
         </div>
-      ) : null}
+      </div>
+
+      <p className="text-center text-xs text-zinc-500">
+        {status === "booting" ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Loader2 size={12} className="animate-spin" /> Starting camera…
+          </span>
+        ) : status === "scanning" ? (
+          "Point at your teammate's My QR screen."
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-emerald-600">
+            <Check size={12} /> Decoded — loading…
+          </span>
+        )}
+      </p>
     </div>
   );
 }

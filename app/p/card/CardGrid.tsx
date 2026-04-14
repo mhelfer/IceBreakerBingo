@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
+import { Check, Sparkles, X } from "lucide-react";
 import { FREE_POSITION } from "@/lib/cardGen";
 
 export type SquareView = {
@@ -151,42 +152,50 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
     <>
       {picker ? (
         <div
-          className={`mb-3 rounded border p-3 text-sm ${
+          className={`mb-3 flex items-start gap-2.5 rounded-lg border p-3 text-sm ${
             picker.result === "eligible"
               ? "border-amber-300 bg-amber-50 text-amber-900"
               : "border-zinc-200 bg-zinc-50 text-zinc-700"
           }`}
           role="status"
         >
-          <div className="flex items-center justify-between gap-2">
-            <span>
-              {picker.result === "eligible" ? (
-                <>
-                  ⚡ <b>{picker.scanned.displayName}</b> matches{" "}
-                  {picker.eligibleTiles.length}{" "}
-                  {picker.eligibleTiles.length === 1 ? "square" : "squares"} —
-                  tap one to claim.
-                </>
-              ) : picker.result === "already_used" ? (
-                <>You already used {picker.scanned.displayName}.</>
-              ) : (
-                <>
-                  {picker.scanned.displayName} doesn&apos;t match any open
-                  squares — chat anyway!
-                </>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={dismissPicker}
-              className="shrink-0 rounded px-2 py-1 text-xs underline"
-            >
-              {picker.result === "eligible" ? "Skip →" : "Dismiss"}
-            </button>
+          <span
+            className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+              picker.result === "eligible"
+                ? "bg-amber-200 text-amber-800"
+                : "bg-zinc-200 text-zinc-500"
+            }`}
+          >
+            <Sparkles size={12} />
+          </span>
+          <div className="flex-1 leading-snug">
+            {picker.result === "eligible" ? (
+              <>
+                <b>{picker.scanned.displayName}</b> matches{" "}
+                {picker.eligibleTiles.length}{" "}
+                {picker.eligibleTiles.length === 1 ? "square" : "squares"} — tap
+                one to claim.
+              </>
+            ) : picker.result === "already_used" ? (
+              <>You already used {picker.scanned.displayName}.</>
+            ) : (
+              <>
+                {picker.scanned.displayName} doesn&apos;t match any open squares
+                — chat anyway!
+              </>
+            )}
+            {claimError ? (
+              <p className="mt-1.5 text-xs text-red-700">{claimError}</p>
+            ) : null}
           </div>
-          {claimError ? (
-            <p className="mt-2 text-xs text-red-700">{claimError}</p>
-          ) : null}
+          <button
+            type="button"
+            onClick={dismissPicker}
+            aria-label={picker.result === "eligible" ? "Skip" : "Dismiss"}
+            className="shrink-0 rounded-md p-1 text-current/70 hover:bg-black/5"
+          >
+            <X size={14} />
+          </button>
         </div>
       ) : null}
 
@@ -201,11 +210,6 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
           const claimed = sq?.claimed ?? false;
           const isEligible = eligiblePositions.has(pos);
           const isDimmed = pickerActive && !isEligible && !claimed && !isFree;
-          const glyph = isFree
-            ? "★"
-            : sq?.kind === "discovery"
-              ? "💬"
-              : "🔖";
           return (
             <button
               key={pos}
@@ -234,12 +238,6 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
                         : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400",
               ].join(" ")}
             >
-              <span
-                className="absolute right-1 top-1 text-[10px] opacity-70"
-                aria-hidden
-              >
-                {glyph}
-              </span>
               <span className="line-clamp-3 font-medium">
                 {isFree ? "FREE" : (sq?.squareText ?? "—")}
               </span>
@@ -261,31 +259,36 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
           onClick={dismissReveal}
         >
           <div
-            className="w-full max-w-md rounded-t-xl bg-white p-5 shadow-lg"
+            className="w-full max-w-md rounded-t-2xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             {reveal.bingo ? (
-              <div className="mb-3 rounded bg-amber-100 px-3 py-2 text-center text-sm font-semibold text-amber-900">
-                ✨🎉 BINGO! 🎉✨
+              <div className="mb-4 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-amber-100 to-amber-50 px-3 py-2.5 text-center text-base font-bold tracking-wide text-amber-900">
+                <Sparkles size={18} /> BINGO! <Sparkles size={18} />
               </div>
             ) : null}
-            <div className="mb-2 text-xs uppercase tracking-wide text-zinc-500">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
               {reveal.kind === "discovery" ? "💬 Discovery" : "🔖 Cohort"}
             </div>
-            <div className="text-lg font-semibold">{reveal.squareText}</div>
-            <div className="mt-3 text-sm text-green-700">
-              Claimed with {reveal.viaDisplayName}!
+            <div className="mt-1 text-2xl font-semibold leading-tight text-zinc-900">
+              {reveal.squareText}
             </div>
-            <p className="mt-3 text-sm text-zinc-700">
-              {reveal.conversationPrompt}
-            </p>
-            <p className="mt-4 text-xs text-zinc-500">
-              💡 Don&apos;t forget to let {reveal.viaDisplayName} scan you back.
+            <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
+              <Check size={12} />
+              Claimed with {reveal.viaDisplayName}
+            </div>
+            {reveal.conversationPrompt ? (
+              <p className="mt-4 text-sm leading-relaxed text-zinc-700">
+                {reveal.conversationPrompt}
+              </p>
+            ) : null}
+            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+              Don&apos;t forget to let {reveal.viaDisplayName} scan you back.
             </p>
             <button
               type="button"
               onClick={dismissReveal}
-              className="mt-5 w-full rounded bg-black py-2 text-sm text-white hover:bg-zinc-800"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-md bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-800"
             >
               Done
             </button>
@@ -301,21 +304,21 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
           onClick={() => setActive(null)}
         >
           <div
-            className="w-full max-w-md rounded-t-xl bg-white p-5 shadow-lg"
+            className="w-full max-w-md rounded-t-2xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-2 text-xs uppercase tracking-wide text-zinc-500">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
               {active.kind === "free"
                 ? "Free space"
                 : active.kind === "discovery"
                   ? "💬 Discovery"
                   : "🔖 Cohort"}
             </div>
-            <div className="text-lg font-semibold">
+            <div className="mt-1 text-xl font-semibold leading-tight text-zinc-900">
               {active.kind === "free" ? "Showed up" : active.squareText}
             </div>
             {active.conversationPrompt ? (
-              <p className="mt-3 text-sm text-zinc-600">
+              <p className="mt-3 text-sm leading-relaxed text-zinc-600">
                 {active.conversationPrompt}
               </p>
             ) : null}
@@ -331,7 +334,7 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
             <button
               type="button"
               onClick={() => setActive(null)}
-              className="mt-5 w-full rounded bg-black py-2 text-sm text-white hover:bg-zinc-800"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-md border border-zinc-200 bg-white text-sm font-medium text-zinc-900 hover:bg-zinc-50"
             >
               Close
             </button>
