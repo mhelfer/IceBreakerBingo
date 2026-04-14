@@ -1,16 +1,16 @@
 import { Clock } from "lucide-react";
-import { readSession } from "@/lib/session";
+import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { PlayerHero } from "../PlayerHero";
 
 export const dynamic = "force-dynamic";
 
 export default async function NotYetPage() {
-  const session = await readSession();
+  const session = await readPlayerSession();
   let name: string | null = null;
   let eventName: string | null = null;
   let startsAt: string | null = null;
-  if (session?.kind === "player") {
+  if (session) {
     const supabase = getSupabaseAdmin();
     const { data: p } = await supabase
       .from("players")

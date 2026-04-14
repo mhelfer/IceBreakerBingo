@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { clearSession, requireFacilitator, setSession } from "@/lib/session";
+import {
+  clearFacilitatorSession,
+  requireFacilitator,
+  setSession,
+} from "@/lib/session";
 import { generateEventCode } from "@/lib/ids";
 
 const emailSchema = z.string().email().max(254).transform((v) => v.toLowerCase().trim());
@@ -65,7 +69,7 @@ export async function signIn(formData: FormData): Promise<void> {
 }
 
 export async function signOut(): Promise<void> {
-  await clearSession();
+  await clearFacilitatorSession();
   redirect("/admin/login");
 }
 

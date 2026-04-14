@@ -1,6 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export const SESSION_COOKIE_NAME = "ibb_session";
+// Split facilitator and player sessions into distinct cookies so that a
+// facilitator testing a player link in another tab doesn't blow away their
+// admin session (both kinds can coexist in the same browser profile).
+export const FACILITATOR_COOKIE_NAME = "ibb_session_fac";
+export const PLAYER_COOKIE_NAME = "ibb_session_p";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 60; // 60 days
 
 export type SessionPayload =

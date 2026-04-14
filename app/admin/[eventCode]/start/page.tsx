@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { AlertTriangle, Play } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { readSession } from "@/lib/session";
+import { readFacilitatorSession } from "@/lib/session";
 import { Banner } from "@/app/components/ui/Banner";
 import { buttonClass } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -21,8 +21,8 @@ export default async function StartGamePage({
 }: {
   params: Promise<{ eventCode: string }>;
 }) {
-  const session = await readSession();
-  if (!session || session.kind !== "facilitator") redirect("/admin/login");
+  const session = await readFacilitatorSession();
+  if (!session) redirect("/admin/login");
 
   const { eventCode } = await params;
   const codeUpper = eventCode.toUpperCase();

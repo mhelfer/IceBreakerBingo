@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AlertCircle } from "lucide-react";
-import { readSession } from "@/lib/session";
+import { readFacilitatorSession } from "@/lib/session";
 import { Button } from "@/app/components/ui/Button";
 import { Card, CardBody } from "@/app/components/ui/Card";
 import { Input, Label } from "@/app/components/ui/Input";
@@ -19,8 +19,8 @@ export default async function AdminLoginPage({
 }: {
   searchParams: Promise<{ mode?: string; error?: string }>;
 }) {
-  const session = await readSession();
-  if (session?.kind === "facilitator") redirect("/admin");
+  const session = await readFacilitatorSession();
+  if (session) redirect("/admin");
 
   const { mode, error } = await searchParams;
   const isSignUp = mode === "signup";

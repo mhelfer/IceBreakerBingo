@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
-import { readSession } from "@/lib/session";
+import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { encodeQrPayload } from "@/lib/qr";
 import { PlayerTabs } from "../PlayerTabs";
@@ -8,8 +8,8 @@ import { PlayerTabs } from "../PlayerTabs";
 export const dynamic = "force-dynamic";
 
 export default async function PlayerQrPage() {
-  const session = await readSession();
-  if (!session || session.kind !== "player") redirect("/p/link-invalid");
+  const session = await readPlayerSession();
+  if (!session) redirect("/p/link-invalid");
 
   const supabase = getSupabaseAdmin();
   const { data: player } = await supabase

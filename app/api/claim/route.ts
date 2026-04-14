@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { readSession } from "@/lib/session";
+import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   completeLines,
@@ -36,10 +36,8 @@ function livePrizeFor(lineType: BingoLineType): "first_across" | "first_down" | 
 }
 
 export async function POST(req: Request) {
-  const session = await readSession();
-  if (!session || session.kind !== "player") {
-    return bad("not a player session", 401);
-  }
+  const session = await readPlayerSession();
+  if (!session) return bad("not a player session", 401);
 
   let body;
   try {

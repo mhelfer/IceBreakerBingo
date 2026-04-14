@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, Play } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { readSession } from "@/lib/session";
+import { readFacilitatorSession } from "@/lib/session";
 import { StatePill, type EventState } from "@/app/components/ui/StatePill";
 import { StatTile } from "@/app/components/ui/StatTile";
 import { buttonClass } from "@/app/components/ui/Button";
@@ -17,8 +17,8 @@ type EventRow = {
 };
 
 export async function HeaderBar({ eventCode }: { eventCode: string }) {
-  const session = await readSession();
-  if (!session || session.kind !== "facilitator") return null;
+  const session = await readFacilitatorSession();
+  if (!session) return null;
 
   const supabase = getSupabaseAdmin();
   const { data: event } = await supabase

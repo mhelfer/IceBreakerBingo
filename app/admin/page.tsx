@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, CalendarClock, LogOut, Users } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { readSession } from "@/lib/session";
+import { readFacilitatorSession } from "@/lib/session";
 import { buttonClass } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { EmptyState } from "@/app/components/ui/EmptyState";
@@ -22,10 +22,8 @@ type EventRow = {
 };
 
 export default async function AdminIndexPage() {
-  const session = await readSession();
-  if (!session || session.kind !== "facilitator") {
-    redirect("/admin/login");
-  }
+  const session = await readFacilitatorSession();
+  if (!session) redirect("/admin/login");
 
   const supabase = getSupabaseAdmin();
   const { data: events, error } = await supabase

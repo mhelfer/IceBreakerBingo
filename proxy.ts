@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
-  SESSION_COOKIE_NAME,
+  PLAYER_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
   encodeSession,
 } from "@/lib/session-token";
@@ -46,7 +46,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     iat: Math.floor(Date.now() / 1000),
   });
   const res = NextResponse.next();
-  res.cookies.set(SESSION_COOKIE_NAME, cookie, {
+  res.cookies.set(PLAYER_COOKIE_NAME, cookie, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Clock } from "lucide-react";
-import { readSession } from "@/lib/session";
+import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { PlayerHero } from "../../PlayerHero";
 
@@ -11,10 +11,8 @@ export const dynamic = "force-dynamic";
 // valid player session. Renders "not yet" inline so the URL doesn't change —
 // participants can bookmark the link and reload as the event progresses.
 export default async function PlayerEntryPage() {
-  const session = await readSession();
-  if (!session || session.kind !== "player") {
-    redirect("/p/link-invalid");
-  }
+  const session = await readPlayerSession();
+  if (!session) redirect("/p/link-invalid");
 
   const supabase = getSupabaseAdmin();
   const { data: player } = await supabase

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { readSession } from "@/lib/session";
+import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { FREE_POSITION } from "@/lib/cardGen";
 import { PlayerTabs } from "../PlayerTabs";
@@ -8,8 +8,8 @@ import { CardGrid, type SquareView } from "./CardGrid";
 export const dynamic = "force-dynamic";
 
 export default async function PlayerCardPage() {
-  const session = await readSession();
-  if (!session || session.kind !== "player") redirect("/p/link-invalid");
+  const session = await readPlayerSession();
+  if (!session) redirect("/p/link-invalid");
 
   const supabase = getSupabaseAdmin();
   const { data: player } = await supabase

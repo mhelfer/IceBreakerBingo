@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { readSession } from "@/lib/session";
+import { readFacilitatorSession } from "@/lib/session";
 import {
   bucketCounts,
   discoveryAnswerCount,
@@ -47,8 +47,8 @@ export default async function CuratePage({
 }: {
   params: Promise<{ eventCode: string }>;
 }) {
-  const session = await readSession();
-  if (!session || session.kind !== "facilitator") redirect("/admin/login");
+  const session = await readFacilitatorSession();
+  if (!session) redirect("/admin/login");
 
   const { eventCode } = await params;
   const codeUpper = eventCode.toUpperCase();

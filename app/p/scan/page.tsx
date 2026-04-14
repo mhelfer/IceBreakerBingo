@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { readSession } from "@/lib/session";
+import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { PlayerTabs } from "../PlayerTabs";
 import { Scanner } from "./Scanner";
@@ -7,8 +7,8 @@ import { Scanner } from "./Scanner";
 export const dynamic = "force-dynamic";
 
 export default async function PlayerScanPage() {
-  const session = await readSession();
-  if (!session || session.kind !== "player") redirect("/p/link-invalid");
+  const session = await readPlayerSession();
+  if (!session) redirect("/p/link-invalid");
 
   const supabase = getSupabaseAdmin();
   const { data: event } = await supabase

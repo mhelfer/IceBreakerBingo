@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { readSession } from "@/lib/session";
+import { readFacilitatorSession } from "@/lib/session";
 import { Tabs, type TabDef } from "@/app/components/ui/Tabs";
 import type { EventState } from "@/app/components/ui/StatePill";
 import { QuestionsSection } from "./QuestionsSection";
@@ -26,8 +26,8 @@ export default async function EventDashboardPage({
   params: Promise<{ eventCode: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const session = await readSession();
-  if (!session || session.kind !== "facilitator") redirect("/admin/login");
+  const session = await readFacilitatorSession();
+  if (!session) redirect("/admin/login");
 
   const { eventCode } = await params;
   const { tab: tabParam } = await searchParams;
