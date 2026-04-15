@@ -200,12 +200,11 @@ export async function POST(req: Request) {
   }
 
   const reveal = await buildReveal(supabase, scanned.id, template);
-  const anyBingo = (await countBingos(supabase, card.id)) > 0;
 
   return NextResponse.json({
     ok: true,
     claimed: true,
-    bingo: anyBingo,
+    bingo: newBingos.length > 0,
     newLines: newBingos.map((b) => ({
       line_type: b.line_type,
       line_index: b.line_index,
