@@ -7,6 +7,7 @@ import { StatTile } from "@/app/components/ui/StatTile";
 import { buttonClass } from "@/app/components/ui/Button";
 import { closeSurvey, openSurvey, reopenSurvey } from "./actions";
 import { unlockCuration } from "./curate/actions";
+import { DeleteEventButton } from "./DeleteEventButton";
 
 type EventRow = {
   id: string;
@@ -88,6 +89,7 @@ export async function HeaderBar({ eventCode }: { eventCode: string }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <DeleteEventButton eventCode={event.code} eventName={event.name} />
             <SecondaryActions state={event.state} code={event.code} />
             <PrimaryCta
               state={event.state}

@@ -74,6 +74,7 @@ export async function signOut(): Promise<void> {
 }
 
 const eventNameSchema = z.string().trim().min(1).max(120);
+const codeSchema = z.string().trim().toUpperCase().min(4).max(12);
 
 export async function createEvent(formData: FormData): Promise<void> {
   const session = await requireFacilitator();
@@ -110,4 +111,55 @@ export async function createEvent(formData: FormData): Promise<void> {
     }
   }
   throw new Error("Could not allocate a unique event code. Try again.");
+}
+
+export async function deleteEvent(eventCode: string): Promise<void> {
+  const session = await requireFacilitator();
+  const code = codeSchema.parse(eventCode);
+  const supabase = getSupabaseAdmin();
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("id")
+    .eq("code", code)
+    .eq("facilitator_id", session.facilitator_id)
+    .maybeSingle();
+  if (!event) throw new Error("Event not found");
+
+  // Gather IDs to manually clear RESTRICT-blocked foreign keys before deletion.
+  const { data: playerRows } = await supabase
+    .from("players")
+    .select("id")
+    .eq("event_id", event.id);
+  const playerIds = playerRows?.map((r) => r.id) ?? [];
+
+  if (playerIds.length > 0) {
+    const { data: cardRows } = await supabase
+      .from("cards")
+      .select("id")
+      .in("player_id", playerIds);
+    const cardIds = cardRows?.map((r) => r.id) ?? [];
+
+    if (cardIds.length > 0) {
+      const { data: claimRows } = await supabase
+        .from("claims")
+        .select("id")
+        .in("card_id", cardIds);
+      const claimIds = claimRows?.map((r) => r.id) ?? [];
+
+      if (claimIds.length > 0) {
+        // bingos.triggering_claim_id is RESTRICT — must go before claims
+        await supabase.from("bingos").delete().in("triggering_claim_id", claimIds);
+        // claims.via_player_id and claims.trait_template_id are RESTRICT
+        await supabase.from("claims").delete().in("id", claimIds);
+      }
+      // card_squares.trait_template_id is RESTRICT
+      await supabase.from("card_squares").delete().in("card_id", cardIds);
+    }
+  }
+
+  // Cascade handles the rest: players, cards, survey_questions,
+  // trait_templates, prize_awards, survey_responses, player_traits.
+  await supabase.from("events").delete().eq("id", event.id);
+  redirect("/admin");
 }
