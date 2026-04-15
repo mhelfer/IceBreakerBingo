@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getOrigin } from "@/lib/origin";
 import {
   Award,
   ChevronLeft,
@@ -17,6 +18,7 @@ import { readFacilitatorSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { buttonClass } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { CopyButton } from "@/app/components/ui/CopyButton";
 import {
   endGame,
   setReuseUnlocked,
@@ -92,10 +94,12 @@ export default async function FacilitateLivePage({
     redirect(`/admin/${event.code}`);
   }
 
+  const origin = await getOrigin();
+
   const [{ data: players }, { data: awards }] = await Promise.all([
     supabase
       .from("players")
-      .select("id, display_name, absent")
+      .select("id, display_name, absent, access_code")
       .eq("event_id", event.id),
     supabase
       .from("prize_awards")
@@ -221,7 +225,17 @@ export default async function FacilitateLivePage({
                     <Square size={12} /> End game
                   </button>
                 </form>
-              ) : null}
+              ) : (
+                <form action={endGame.bind(null, event.code)}>
+                  <button
+                    type="submit"
+                    className={buttonClass("secondary", "md")}
+                    title="Recomputes end-of-game prizes (fastest bingo, unluckiest)."
+                  >
+                    Recompute prizes
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>
@@ -335,6 +349,12 @@ export default async function FacilitateLivePage({
           />
         ) : null}
 
+        <PlayerLinksSection
+          players={players ?? []}
+          eventCode={event.code}
+          origin={origin}
+        />
+
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <Card className="p-4">
             <div className="flex items-baseline justify-between">
@@ -444,6 +464,55 @@ function LiveStatusPill({ isLive }: { isLive: boolean }) {
   );
 }
 
+function PlayerLinksSection({
+  players,
+  eventCode,
+  origin,
+}: {
+  players: { id: string; display_name: string; absent: boolean; access_code: string }[];
+  eventCode: string;
+  origin: string;
+}) {
+  const active = players.filter((p) => !p.absent).sort((a, b) => a.display_name.localeCompare(b.display_name));
+  if (active.length === 0) return null;
+
+  const allLinks = active
+    .map((p) => `${p.display_name} — ${origin}/p/${eventCode}/${p.access_code}`)
+    .join("\n");
+
+  return (
+    <Card className="p-4">
+      <details>
+        <summary className="cursor-pointer">
+          <div className="inline-flex items-baseline gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Player links
+            </h2>
+            <span className="text-xs text-zinc-400">{active.length} players</span>
+          </div>
+        </summary>
+
+        <div className="mt-3 mb-2">
+          <CopyButton value={allLinks} label="Copy all links" variant="secondary" size="sm" />
+        </div>
+
+        <ul className="flex flex-col gap-1 text-sm">
+          {active.map((p) => {
+            const url = `${origin}/p/${eventCode}/${p.access_code}`;
+            return (
+              <li key={p.id} className="flex items-center gap-2">
+                <span className="w-36 truncate text-zinc-800">{p.display_name}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-400">{url}</span>
+                <CopyButton value={url} label="Copy" iconOnly size="sm" />
+              </li>
+            );
+          })}
+        </ul>
+      </details>
+    </Card>
+  );
+}
+
 function ReuseToggleCard({
   eventCode,
   reuseUnlocked,
@@ -479,3 +548,4 @@ function ReuseToggleCard({
     </Card>
   );
 }
+

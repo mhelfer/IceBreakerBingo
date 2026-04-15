@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   decodeSession,
   encodeSession,
+  SESSION_MAX_AGE_SECONDS,
   type SessionPayload,
 } from "@/lib/session-token";
 
@@ -15,7 +16,7 @@ describe("encodeSession / decodeSession", () => {
     const payload: SessionPayload = {
       kind: "facilitator",
       facilitator_id: "00000000-0000-0000-0000-000000000001",
-      iat: 1000,
+      iat: Math.floor(Date.now() / 1000),
     };
     const token = encodeSession(payload);
     expect(decodeSession(token)).toEqual(payload);
@@ -26,17 +27,18 @@ describe("encodeSession / decodeSession", () => {
       kind: "player",
       player_id: "00000000-0000-0000-0000-000000000002",
       event_id: "00000000-0000-0000-0000-000000000003",
-      iat: 2000,
+      iat: Math.floor(Date.now() / 1000),
     };
     const token = encodeSession(payload);
     expect(decodeSession(token)).toEqual(payload);
   });
 
   it("rejects tampered body", () => {
+    const now = Math.floor(Date.now() / 1000);
     const payload: SessionPayload = {
       kind: "facilitator",
       facilitator_id: "x",
-      iat: 1,
+      iat: now,
     };
     const token = encodeSession(payload);
     const dot = token.indexOf(".");
@@ -45,10 +47,11 @@ describe("encodeSession / decodeSession", () => {
   });
 
   it("rejects tampered signature", () => {
+    const now = Math.floor(Date.now() / 1000);
     const payload: SessionPayload = {
       kind: "facilitator",
       facilitator_id: "x",
-      iat: 1,
+      iat: now,
     };
     const token = encodeSession(payload);
     const dot = token.indexOf(".");
@@ -62,10 +65,11 @@ describe("encodeSession / decodeSession", () => {
   });
 
   it("rejects when signed under a different secret", () => {
+    const now = Math.floor(Date.now() / 1000);
     const payload: SessionPayload = {
       kind: "facilitator",
       facilitator_id: "x",
-      iat: 1,
+      iat: now,
     };
     const token = encodeSession(payload);
     process.env.SESSION_COOKIE_SECRET =
@@ -73,6 +77,26 @@ describe("encodeSession / decodeSession", () => {
     expect(decodeSession(token)).toBeNull();
     process.env.SESSION_COOKIE_SECRET =
       "test-secret-0123456789abcdef0123456789abcdef";
+  });
+
+  it("rejects an expired token", () => {
+    const payload: SessionPayload = {
+      kind: "facilitator",
+      facilitator_id: "00000000-0000-0000-0000-000000000001",
+      iat: Math.floor(Date.now() / 1000) - SESSION_MAX_AGE_SECONDS - 1,
+    };
+    const token = encodeSession(payload);
+    expect(decodeSession(token)).toBeNull();
+  });
+
+  it("accepts a token just within the max age", () => {
+    const payload: SessionPayload = {
+      kind: "facilitator",
+      facilitator_id: "00000000-0000-0000-0000-000000000001",
+      iat: Math.floor(Date.now() / 1000) - SESSION_MAX_AGE_SECONDS + 60,
+    };
+    const token = encodeSession(payload);
+    expect(decodeSession(token)).toEqual(payload);
   });
 
   it("throws if secret is unset or too short", () => {

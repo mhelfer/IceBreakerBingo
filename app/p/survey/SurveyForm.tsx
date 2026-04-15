@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { upsertAnswer, submitSurvey } from "./actions";
 
@@ -52,6 +52,24 @@ export function SurveyForm({
   });
   const [missing, setMissing] = useState<string[] | null>(null);
   const [submitting, startSubmit] = useTransition();
+
+  const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const debouncedUpdate = useCallback(
+    (q: SurveyQuestion, next: string | string[] | null) => {
+      const existing = debounceTimers.current.get(q.id);
+      if (existing) clearTimeout(existing);
+      debounceTimers.current.set(
+        q.id,
+        setTimeout(() => {
+          debounceTimers.current.delete(q.id);
+          update(q, next);
+        }, 400),
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   function update(q: SurveyQuestion, next: string | string[] | null): void {
     setAnswers((prev) => ({
@@ -153,8 +171,22 @@ export function SurveyForm({
                   <textarea
                     rows={3}
                     value={typeof a.value === "string" ? a.value : ""}
-                    onChange={(e) => update(q, e.target.value)}
-                    onBlur={(e) => update(q, e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAnswers((prev) => ({
+                        ...prev,
+                        [q.id]: { ...prev[q.id], value: val },
+                      }));
+                      debouncedUpdate(q, val);
+                    }}
+                    onBlur={(e) => {
+                      const existing = debounceTimers.current.get(q.id);
+                      if (existing) {
+                        clearTimeout(existing);
+                        debounceTimers.current.delete(q.id);
+                      }
+                      update(q, e.target.value);
+                    }}
                     className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
                     placeholder="Type your answer"
                   />

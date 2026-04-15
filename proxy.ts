@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import {
   PLAYER_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
+  decodeSession,
   encodeSession,
 } from "@/lib/session-token";
 
@@ -21,6 +22,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const accessCode = segs[2];
 
   const supabase = getSupabaseAdmin();
+
   const { data: event } = await supabase
     .from("events")
     .select("id")
@@ -29,6 +31,23 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (!event) {
     return NextResponse.rewrite(new URL("/p/link-invalid", request.url));
   }
+
+  // If the browser already has a valid session cookie for this exact player
+  // and event, skip the access_code lookup and cookie mint. This avoids
+  // resetting the iat on every page load (which would prevent server-side
+  // expiry from ever triggering for active users).
+  const existing = request.cookies.get(PLAYER_COOKIE_NAME)?.value;
+  if (existing) {
+    const session = decodeSession(existing);
+    if (
+      session &&
+      session.kind === "player" &&
+      session.event_id === event.id
+    ) {
+      return NextResponse.next();
+    }
+  }
+
   const { data: player } = await supabase
     .from("players")
     .select("id, event_id")

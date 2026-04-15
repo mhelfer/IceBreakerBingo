@@ -10,15 +10,27 @@ const uuidSchema = z.string().uuid();
 async function loadSurveyContext() {
   const session = await requirePlayer();
   const supabase = getSupabaseAdmin();
-  const { data: event, error } = await supabase
-    .from("events")
-    .select("id, state")
-    .eq("id", session.event_id)
-    .maybeSingle();
+  const [{ data: event, error }, { data: player, error: pErr }] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select("id, state")
+        .eq("id", session.event_id)
+        .maybeSingle(),
+      supabase
+        .from("players")
+        .select("survey_submitted_at")
+        .eq("id", session.player_id)
+        .maybeSingle(),
+    ]);
   if (error) throw new Error(error.message);
+  if (pErr) throw new Error(pErr.message);
   if (!event) throw new Error("EVENT_NOT_FOUND");
   if (event.state !== "survey_open") {
     throw new Error("Survey is not open.");
+  }
+  if (player?.survey_submitted_at) {
+    throw new Error("Survey already submitted.");
   }
   return { supabase, session, event };
 }
@@ -28,9 +40,20 @@ export async function upsertAnswer(formData: FormData): Promise<void> {
   const { supabase, session } = await loadSurveyContext();
 
   const question_id = uuidSchema.parse(formData.get("question_id"));
-  const type = z
-    .enum(["single", "multi", "binary", "text", "numeric_bucket"])
-    .parse(formData.get("type"));
+
+  // Load the authoritative question type and options from the DB — never
+  // trust the client-supplied type for validation decisions.
+  const { data: q, error: qErr } = await supabase
+    .from("survey_questions")
+    .select("id, event_id, type, options")
+    .eq("id", question_id)
+    .maybeSingle();
+  if (qErr) throw new Error(qErr.message);
+  if (!q || q.event_id !== session.event_id) {
+    throw new Error("Question not found.");
+  }
+
+  const type = q.type as "single" | "multi" | "binary" | "text" | "numeric_bucket";
 
   let value: unknown;
   if (type === "multi") {
@@ -50,15 +73,19 @@ export async function upsertAnswer(formData: FormData): Promise<void> {
     value = s;
   }
 
-  // Verify the question belongs to the player's event.
-  const { data: q, error: qErr } = await supabase
-    .from("survey_questions")
-    .select("id, event_id")
-    .eq("id", question_id)
-    .maybeSingle();
-  if (qErr) throw new Error(qErr.message);
-  if (!q || q.event_id !== session.event_id) {
-    throw new Error("Question not found.");
+  // Validate answer against the question's allowed options.
+  if (type !== "text" && Array.isArray(q.options)) {
+    const allowed = q.options as string[];
+    if (type === "multi") {
+      const vals = value as string[];
+      if (!vals.every((v) => allowed.includes(v))) {
+        throw new Error("Invalid option selected.");
+      }
+    } else {
+      if (!allowed.includes(value as string)) {
+        throw new Error("Invalid option selected.");
+      }
+    }
   }
 
   const { error } = await supabase.from("survey_responses").upsert(

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readPlayerSession } from "@/lib/session";
@@ -62,7 +63,12 @@ export async function POST(req: Request) {
   if (!scanned || scanned.event_id !== event.id) {
     return bad("scanned player not in this event", 404);
   }
-  if (scanned.qr_nonce !== payload.qrNonce) {
+  if (scanned.absent) {
+    return bad("that player is marked absent");
+  }
+  const nonceA = Buffer.from(scanned.qr_nonce);
+  const nonceB = Buffer.from(payload.qrNonce);
+  if (nonceA.length !== nonceB.length || !timingSafeEqual(nonceA, nonceB)) {
     return bad("qr nonce mismatch — ask for a fresh qr");
   }
 

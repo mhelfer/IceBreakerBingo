@@ -40,7 +40,16 @@ export function decodeSession(token: string): SessionPayload | null {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
-    return JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    const payload = JSON.parse(
+      Buffer.from(body, "base64url").toString("utf8"),
+    ) as SessionPayload;
+    if (
+      typeof payload.iat !== "number" ||
+      Date.now() / 1000 - payload.iat > SESSION_MAX_AGE_SECONDS
+    ) {
+      return null;
+    }
+    return payload;
   } catch {
     return null;
   }

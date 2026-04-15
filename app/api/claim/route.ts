@@ -113,11 +113,14 @@ export async function POST(req: Request) {
   }
   const { data: scanned } = await supabase
     .from("players")
-    .select("id, display_name, event_id")
+    .select("id, display_name, event_id, absent")
     .eq("id", body.scannedPlayerId)
     .maybeSingle();
   if (!scanned || scanned.event_id !== event.id) {
     return bad("scanned player not in this event", 404);
+  }
+  if (scanned.absent) {
+    return bad("that player is marked absent");
   }
 
   const { data: trait } = await supabase
@@ -128,21 +131,7 @@ export async function POST(req: Request) {
     .maybeSingle();
   if (!trait) return bad("that teammate does not match this square");
 
-  // Reuse policy: pre-unlock, each teammate can satisfy at most one square.
-  if (!event.reuse_unlocked) {
-    const { data: reusedClaim } = await supabase
-      .from("claims")
-      .select("id")
-      .eq("card_id", card.id)
-      .eq("via_player_id", scanned.id)
-      .limit(1)
-      .maybeSingle();
-    if (reusedClaim) {
-      return bad("teammate already used — reuse is locked", 409);
-    }
-  }
-
-  // Insert the claim. unique(card_id, position) catches races.
+  // Insert the claim. unique(card_id, position) catches same-square races.
   const { error: insertErr } = await supabase.from("claims").insert({
     card_id: card.id,
     position: body.position,
@@ -158,14 +147,36 @@ export async function POST(req: Request) {
     return bad(insertErr.message, 500);
   }
 
-  // Re-read the canonical claim id for bingo linkage.
+  // Re-read the canonical claim id for bingo linkage (and reuse rollback).
   const { data: justInserted } = await supabase
     .from("claims")
-    .select("id")
+    .select("id, claimed_at")
     .eq("card_id", card.id)
     .eq("position", body.position)
     .single();
   if (!justInserted) return bad("claim readback failed", 500);
+
+  // Reuse policy: when locked, each teammate can satisfy at most one square.
+  // Check AFTER insert so the row is visible to concurrent transactions,
+  // eliminating the TOCTOU race of a pre-insert check. If two requests race,
+  // the one with the later claimed_at deletes itself so exactly one survives.
+  if (!event.reuse_unlocked) {
+    const { data: dupes } = await supabase
+      .from("claims")
+      .select("id, claimed_at")
+      .eq("card_id", card.id)
+      .eq("via_player_id", scanned.id);
+    if ((dupes?.length ?? 0) > 1) {
+      const dominated = dupes!.some(
+        (d) => d.id !== justInserted.id && d.claimed_at <= justInserted.claimed_at,
+      );
+      if (dominated) {
+        // Another claim via this teammate was first — roll back ours by id.
+        await supabase.from("claims").delete().eq("id", justInserted.id);
+        return bad("teammate already used — reuse is locked", 409);
+      }
+    }
+  }
 
   // Detect bingos + blackout using all claims on this card (+ free space).
   const { data: allClaims } = await supabase

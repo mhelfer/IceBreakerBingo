@@ -123,11 +123,6 @@ export default async function CuratePage({
         won't complete. Buckets with fewer than {MIN_MATCHERS} matchers are
         flagged uncompletable.
       </p>
-      {!editable ? (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          Curation is locked. Unlock to edit trait templates.
-        </div>
-      ) : null}
       {editable && placeholderCount > 0 ? (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <b>{placeholderCount}</b> enabled{" "}
@@ -139,6 +134,37 @@ export default async function CuratePage({
       {rosterCount != null ? (
         <p className="text-xs text-zinc-500">Roster size: {rosterCount}</p>
       ) : null}
+
+      {editable ? (
+        <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <p className="text-sm text-zinc-600">
+            Locking curation freezes trait templates. Cards are generated when
+            you start the game.
+          </p>
+          <form action={lockCuration.bind(null, event.code)} className="ml-4 shrink-0">
+            <button
+              type="submit"
+              className="rounded bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800"
+            >
+              Lock Curation →
+            </button>
+          </form>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <p className="text-sm text-amber-900">
+            Curation is locked. Unlock to edit trait templates.
+          </p>
+          <form action={unlockCuration.bind(null, event.code)} className="ml-4 shrink-0">
+            <button
+              type="submit"
+              className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm hover:bg-zinc-50"
+            >
+              ← Unlock curation
+            </button>
+          </form>
+        </div>
+      )}
 
       <ol className="flex flex-col gap-6">
         {questions.map((q) => {
@@ -196,40 +222,6 @@ export default async function CuratePage({
         })}
       </ol>
 
-      <section className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-        <h2 className="text-lg font-medium">Curation state</h2>
-        {editable ? (
-          <>
-            <p className="mt-2 text-sm text-zinc-600">
-              Locking curation freezes trait templates. Cards are generated when
-              you start the game.
-            </p>
-            <form
-              action={lockCuration.bind(null, event.code)}
-              className="mt-3"
-            >
-              <button
-                type="submit"
-                className="rounded bg-black px-4 py-2 text-sm text-white hover:bg-zinc-800"
-              >
-                Lock Curation →
-              </button>
-            </form>
-          </>
-        ) : (
-          <form
-            action={unlockCuration.bind(null, event.code)}
-            className="mt-3"
-          >
-            <button
-              type="submit"
-              className="rounded border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-50"
-            >
-              ← Unlock curation
-            </button>
-          </form>
-        )}
-      </section>
     </div>
   );
 }

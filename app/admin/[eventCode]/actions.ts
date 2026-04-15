@@ -149,7 +149,10 @@ export async function remintAccessCode(
   const id = uuidSchema.parse(playerId);
   const { error } = await supabase
     .from("players")
-    .update({ access_code: generate96BitToken() })
+    .update({
+      access_code: generate96BitToken(),
+      qr_nonce: generate96BitToken(),
+    })
     .eq("id", id)
     .eq("event_id", event.id);
   if (error) throw new Error(error.message);
@@ -177,17 +180,20 @@ export async function setReuseUnlocked(
 
 export async function endGame(eventCode: string): Promise<void> {
   const { supabase, event } = await loadOwnedEvent(eventCode);
-  if (event.state !== "live") {
+  if (event.state !== "live" && event.state !== "ended") {
     throw new Error(`Can't end game from state ${event.state}.`);
   }
-  const endedAt = new Date().toISOString();
 
   // Freeze state first so new claims are rejected while we compute.
-  const { error: stateErr } = await supabase
-    .from("events")
-    .update({ state: "ended", ended_at: endedAt })
-    .eq("id", event.id);
-  if (stateErr) throw new Error(stateErr.message);
+  // If already ended (re-entry for prize recovery), skip the state update.
+  if (event.state === "live") {
+    const endedAt = new Date().toISOString();
+    const { error: stateErr } = await supabase
+      .from("events")
+      .update({ state: "ended", ended_at: endedAt })
+      .eq("id", event.id);
+    if (stateErr) throw new Error(stateErr.message);
+  }
 
   // Pull the frozen inputs.
   const { data: players } = await supabase
@@ -276,21 +282,25 @@ export async function endGame(eventCode: string): Promise<void> {
     .eq("event_id", event.id)
     .in("prize", ["fastest_bingo", "unluckiest"]);
 
-  for (const w of fastest) {
-    await supabase.from("prize_awards").insert({
+  const prizeRows = [
+    ...fastest.map((w) => ({
       event_id: event.id,
-      prize: "fastest_bingo",
+      prize: "fastest_bingo" as const,
       player_id: w.playerId,
       detail: { duration_ms: w.durationMs },
-    });
-  }
-  for (const w of unluckiest) {
-    await supabase.from("prize_awards").insert({
+    })),
+    ...unluckiest.map((w) => ({
       event_id: event.id,
-      prize: "unluckiest",
+      prize: "unluckiest" as const,
       player_id: w.playerId,
       detail: { claims_to_bingo: w.claimsToBingo },
-    });
+    })),
+  ];
+  if (prizeRows.length > 0) {
+    const { error: prizeErr } = await supabase
+      .from("prize_awards")
+      .insert(prizeRows);
+    if (prizeErr) throw new Error(prizeErr.message);
   }
 
   revalidatePath(`/facilitate/${event.code}`);

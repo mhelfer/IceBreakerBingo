@@ -1,7 +1,7 @@
-import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { readFacilitatorSession } from "@/lib/session";
+import { getOrigin } from "@/lib/origin";
 import { Tabs, type TabDef } from "@/app/components/ui/Tabs";
 import type { EventState } from "@/app/components/ui/StatePill";
 import { QuestionsSection } from "./QuestionsSection";
@@ -99,11 +99,3 @@ function normalizeTab(raw: string | undefined): TabKey {
   return "questions";
 }
 
-async function getOrigin(): Promise<string> {
-  const envOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN;
-  if (envOrigin) return envOrigin.replace(/\/$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  return `${proto}://${host}`;
-}

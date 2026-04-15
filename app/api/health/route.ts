@@ -1,22 +1,26 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export async function GET() {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1,
-  });
+  try {
+    const supabase = getSupabaseAdmin();
+    // Lightweight connectivity check — no admin APIs, no data leaked.
+    const { error } = await supabase
+      .from("events")
+      .select("id", { count: "exact", head: true })
+      .limit(0);
 
-  if (error) {
+    if (error) {
+      return Response.json(
+        { ok: false, error: "db unreachable" },
+        { status: 500 },
+      );
+    }
+
+    return Response.json({ ok: true, supabase: "connected" });
+  } catch {
     return Response.json(
-      { ok: false, error: error.message },
+      { ok: false, error: "db unreachable" },
       { status: 500 },
     );
   }
-
-  return Response.json({
-    ok: true,
-    supabase: "connected",
-    user_count_visible: data.users.length,
-  });
 }
