@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, code, state, reuse_unlocked")
+    .select("id, code, state, reuse_unlocked, show_all_matches")
     .eq("id", session.event_id)
     .maybeSingle();
   if (!event) return bad("event not found", 404);
@@ -134,22 +134,29 @@ export async function POST(req: Request) {
     );
   }
 
+  let tiles =
+    result.kind === "eligible"
+      ? result.positions.map((pos) => {
+          const traitId = squaresByPos.get(pos);
+          const meta = traitId ? traitMeta.get(traitId) : undefined;
+          return {
+            position: pos,
+            traitTemplateId: traitId ?? null,
+            squareText: meta?.square_text ?? "",
+            kind: meta?.kind ?? "cohort",
+          };
+        })
+      : [];
+
+  // Auto-select: return 1 random eligible tile unless facilitator enabled show-all.
+  if (!event.show_all_matches && tiles.length > 1) {
+    tiles = [tiles[Math.floor(Math.random() * tiles.length)]];
+  }
+
   return NextResponse.json({
     ok: true,
     scanned: { id: scanned.id, displayName: scanned.display_name },
     result: result.kind,
-    eligibleTiles:
-      result.kind === "eligible"
-        ? result.positions.map((pos) => {
-            const traitId = squaresByPos.get(pos);
-            const meta = traitId ? traitMeta.get(traitId) : undefined;
-            return {
-              position: pos,
-              traitTemplateId: traitId ?? null,
-              squareText: meta?.square_text ?? "",
-              kind: meta?.kind ?? "cohort",
-            };
-          })
-        : [],
+    eligibleTiles: tiles,
   });
 }

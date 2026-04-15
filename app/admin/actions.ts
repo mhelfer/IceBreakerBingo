@@ -15,8 +15,13 @@ const emailSchema = z.string().email().max(254).transform((v) => v.toLowerCase()
 const passwordSchema = z.string().min(8).max(200);
 
 export async function signUp(formData: FormData): Promise<void> {
-  const email = emailSchema.parse(formData.get("email"));
-  const password = passwordSchema.parse(formData.get("password"));
+  const emailResult = emailSchema.safeParse(formData.get("email"));
+  const passwordResult = passwordSchema.safeParse(formData.get("password"));
+  if (!emailResult.success || !passwordResult.success) {
+    redirect("/admin/login?mode=signup&error=Invalid+email+or+password+(min+8+chars).");
+  }
+  const email = emailResult.data;
+  const password = passwordResult.data;
 
   const supabase = getSupabaseAdmin();
   const existing = await supabase
@@ -24,9 +29,11 @@ export async function signUp(formData: FormData): Promise<void> {
     .select("id")
     .eq("email", email)
     .maybeSingle();
-  if (existing.error) throw new Error("Something went wrong. Try again.");
+  if (existing.error) {
+    redirect("/admin/login?mode=signup&error=Something+went+wrong.+Try+again.");
+  }
   if (existing.data) {
-    throw new Error("An account with that email already exists. Sign in instead.");
+    redirect("/admin/login?mode=signup&error=An+account+with+that+email+already+exists.+Sign+in+instead.");
   }
 
   const password_hash = await hashPassword(password);
@@ -36,7 +43,7 @@ export async function signUp(formData: FormData): Promise<void> {
     .select("id")
     .single();
   if (insert.error || !insert.data) {
-    throw new Error(insert.error?.message ?? "Failed to create account");
+    redirect("/admin/login?mode=signup&error=Failed+to+create+account.+Try+again.");
   }
 
   await setSession({
@@ -52,7 +59,7 @@ export async function signIn(formData: FormData): Promise<void> {
   const rawPassword = formData.get("password");
   const password = typeof rawPassword === "string" ? rawPassword : "";
   if (!emailResult.success || password.length === 0) {
-    throw new Error("Wrong email or password.");
+    redirect("/admin/login?error=Wrong+email+or+password.");
   }
   const email = emailResult.data;
 
@@ -62,9 +69,11 @@ export async function signIn(formData: FormData): Promise<void> {
     .select("id, password_hash")
     .eq("email", email)
     .maybeSingle();
-  if (row.error) throw new Error("Something went wrong. Try again.");
+  if (row.error) {
+    redirect("/admin/login?error=Something+went+wrong.+Try+again.");
+  }
   if (!row.data || !(await verifyPassword(password, row.data.password_hash))) {
-    throw new Error("Wrong email or password.");
+    redirect("/admin/login?error=Wrong+email+or+password.");
   }
 
   await setSession({

@@ -9,6 +9,7 @@ import {
   Flame,
   Medal,
   Radio,
+  Shuffle,
   Square,
   Target,
   Trophy,
@@ -22,6 +23,7 @@ import { CopyButton } from "@/app/components/ui/CopyButton";
 import {
   endGame,
   setReuseUnlocked,
+  setShowAllMatches,
 } from "../../admin/[eventCode]/actions";
 import { AutoRefresh } from "./AutoRefresh";
 
@@ -85,7 +87,7 @@ export default async function FacilitateLivePage({
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, code, name, state, reuse_unlocked, started_at, ended_at")
+    .select("id, code, name, state, reuse_unlocked, show_all_matches, started_at, ended_at")
     .eq("code", codeUpper)
     .eq("facilitator_id", session.facilitator_id)
     .maybeSingle();
@@ -343,10 +345,16 @@ export default async function FacilitateLivePage({
         </section>
 
         {isLive ? (
-          <ReuseToggleCard
-            eventCode={event.code}
-            reuseUnlocked={event.reuse_unlocked}
-          />
+          <>
+            <ReuseToggleCard
+              eventCode={event.code}
+              reuseUnlocked={event.reuse_unlocked}
+            />
+            <ShowAllMatchesToggle
+              eventCode={event.code}
+              showAllMatches={event.show_all_matches}
+            />
+          </>
         ) : null}
 
         <PlayerLinksSection
@@ -543,6 +551,42 @@ function ReuseToggleCard({
           className={buttonClass(reuseUnlocked ? "secondary" : "primary", "sm")}
         >
           {reuseUnlocked ? "Turn off reuse" : "Turn on reuse"}
+        </button>
+      </form>
+    </Card>
+  );
+}
+
+function ShowAllMatchesToggle({
+  eventCode,
+  showAllMatches,
+}: {
+  eventCode: string;
+  showAllMatches: boolean;
+}) {
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="flex items-start gap-3">
+        <Shuffle size={16} className="mt-0.5 text-zinc-400" />
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-900">
+            Match selection
+          </h2>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            {showAllMatches
+              ? "Show all — players pick which matching square to claim."
+              : "Auto-select — a random matching square is chosen for each scan."}
+          </p>
+        </div>
+      </div>
+      <form
+        action={setShowAllMatches.bind(null, eventCode, !showAllMatches)}
+      >
+        <button
+          type="submit"
+          className={buttonClass(showAllMatches ? "secondary" : "primary", "sm")}
+        >
+          {showAllMatches ? "Use auto-select" : "Show all matches"}
         </button>
       </form>
     </Card>

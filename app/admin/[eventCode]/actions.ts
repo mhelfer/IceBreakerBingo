@@ -178,6 +178,22 @@ export async function setReuseUnlocked(
   revalidatePath(`/facilitate/${event.code}`);
 }
 
+export async function setShowAllMatches(
+  eventCode: string,
+  enabled: boolean,
+): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "live") {
+    throw new Error("Match mode toggle only works while the game is live.");
+  }
+  const { error } = await supabase
+    .from("events")
+    .update({ show_all_matches: enabled })
+    .eq("id", event.id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/facilitate/${event.code}`);
+}
+
 export async function endGame(eventCode: string): Promise<void> {
   const { supabase, event } = await loadOwnedEvent(eventCode);
   if (event.state !== "live" && event.state !== "ended") {
