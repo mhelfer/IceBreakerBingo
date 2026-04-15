@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { FREE_POSITION } from "@/lib/cardGen";
 import { PlayerTabs } from "../PlayerTabs";
 import { CardGrid, type SquareView } from "./CardGrid";
+import { Onboarding } from "./Onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +149,7 @@ export default async function PlayerCardPage() {
       </div>
 
       <CardGrid squares={squares} />
+      {event.state === "live" ? <Onboarding eventId={player.event_id} /> : null}
 
       <PlayerTabs active="card" />
     </main>
