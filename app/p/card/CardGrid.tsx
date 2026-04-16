@@ -171,10 +171,18 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
           <div className="flex-1 leading-snug">
             {picker.result === "eligible" ? (
               <>
-                <b>{picker.scanned.displayName}</b> matches{" "}
-                {picker.eligibleTiles.length}{" "}
-                {picker.eligibleTiles.length === 1 ? "square" : "squares"} — tap
-                one to claim.
+                {picker.eligibleTiles.length === 1 ? (
+                  <>
+                    <b>{picker.scanned.displayName}</b> matched a square
+                    — tap it to claim!
+                  </>
+                ) : (
+                  <>
+                    <b>{picker.scanned.displayName}</b> matches{" "}
+                    {picker.eligibleTiles.length} squares — tap one to
+                    claim.
+                  </>
+                )}
               </>
             ) : picker.result === "already_used" ? (
               <>You already used {picker.scanned.displayName}.</>
@@ -267,10 +275,7 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
                 <Sparkles size={18} /> BINGO! <Sparkles size={18} />
               </div>
             ) : null}
-            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-              {reveal.kind === "discovery" ? "💬 Discovery" : "🔖 Cohort"}
-            </div>
-            <div className="mt-1 text-2xl font-semibold leading-tight text-zinc-900">
+            <div className="text-2xl font-semibold leading-tight text-zinc-900">
               {reveal.squareText}
             </div>
             <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
@@ -282,9 +287,6 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
                 {reveal.conversationPrompt}
               </p>
             ) : null}
-            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-              Don&apos;t forget to let {reveal.viaDisplayName} scan you back.
-            </p>
             <button
               type="button"
               onClick={dismissReveal}
