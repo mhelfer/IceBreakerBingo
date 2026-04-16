@@ -309,14 +309,7 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
             className="w-full max-w-md rounded-t-2xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-              {active.kind === "free"
-                ? "Free space"
-                : active.kind === "discovery"
-                  ? "💬 Discovery"
-                  : "🔖 Cohort"}
-            </div>
-            <div className="mt-1 text-xl font-semibold leading-tight text-zinc-900">
+            <div className="text-xl font-semibold leading-tight text-zinc-900">
               {active.kind === "free" ? "Showed up" : active.squareText}
             </div>
             {active.conversationPrompt ? (
