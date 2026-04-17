@@ -21,6 +21,8 @@ const SCANNER_ELEMENT_ID = "ibb-scanner";
 export function Scanner() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [status, setStatus] = useState<"booting" | "scanning" | "decoded">(
     "booting",
   );
@@ -62,6 +64,7 @@ export function Scanner() {
           setError(
             "Couldn't start the camera. In Safari: tap AA → Website Settings → Camera → Allow, then reload.",
           );
+          setCanRetry(false);
         }
       }
     })();
@@ -76,6 +79,7 @@ export function Scanner() {
         const data = await res.json();
         if (!res.ok || !data.ok) {
           setError(data.error ?? "Scan failed.");
+          setCanRetry(true);
           return;
         }
         const payload: PickerPayload = {
@@ -88,6 +92,7 @@ export function Scanner() {
         router.push("/p/card");
       } catch {
         setError("Network hiccup — try scanning again.");
+        setCanRetry(true);
       }
     }
 
@@ -99,7 +104,7 @@ export function Scanner() {
         s.stop().catch(() => {});
       }
     };
-  }, [router]);
+  }, [router, retryKey]);
 
   if (error) {
     return (
@@ -111,7 +116,17 @@ export function Scanner() {
         <p className="text-xs leading-relaxed text-zinc-600">{error}</p>
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            if (canRetry) {
+              setError(null);
+              setCanRetry(false);
+              setStatus("booting");
+              stoppedRef.current = false;
+              setRetryKey((k) => k + 1);
+            } else {
+              window.location.reload();
+            }
+          }}
           className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-xs font-medium text-zinc-900 hover:bg-zinc-50"
         >
           Try again

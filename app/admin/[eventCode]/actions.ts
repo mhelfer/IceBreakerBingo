@@ -204,11 +204,20 @@ export async function endGame(eventCode: string): Promise<void> {
   // If already ended (re-entry for prize recovery), skip the state update.
   if (event.state === "live") {
     const endedAt = new Date().toISOString();
-    const { error: stateErr } = await supabase
+    const { data: updated, error: stateErr } = await supabase
       .from("events")
       .update({ state: "ended", ended_at: endedAt })
-      .eq("id", event.id);
+      .eq("id", event.id)
+      .eq("state", "live") // CAS: only transition if still live
+      .select("id")
+      .maybeSingle();
     if (stateErr) throw new Error(stateErr.message);
+    if (!updated) {
+      // Another call already transitioned — skip prize computation.
+      revalidatePath(`/facilitate/${event.code}`);
+      revalidatePath(`/admin/${event.code}`);
+      return;
+    }
   }
 
   // Pull the frozen inputs.

@@ -17,7 +17,7 @@ import {
 import type { ComponentType } from "react";
 import { readFacilitatorSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { buttonClass } from "@/app/components/ui/Button";
+import { SubmitButton } from "@/app/components/ui/SubmitButton";
 import { Card } from "@/app/components/ui/Card";
 import { CopyButton } from "@/app/components/ui/CopyButton";
 import {
@@ -26,6 +26,7 @@ import {
   setShowAllMatches,
 } from "../../admin/[eventCode]/actions";
 import { AutoRefresh } from "./AutoRefresh";
+import { EndGameButton } from "./EndGameButton";
 
 export const dynamic = "force-dynamic";
 
@@ -218,24 +219,12 @@ export default async function FacilitateLivePage({
                 {totalClaims} claims · {totalBingos} bingos · {playerCount} players
               </span>
               {isLive ? (
-                <form action={endGame.bind(null, event.code)}>
-                  <button
-                    type="submit"
-                    className={buttonClass("danger", "md")}
-                    title="Ends the game — cards freeze and end-of-game prizes are awarded."
-                  >
-                    <Square size={12} /> End game
-                  </button>
-                </form>
+                <EndGameButton eventCode={event.code} />
               ) : (
                 <form action={endGame.bind(null, event.code)}>
-                  <button
-                    type="submit"
-                    className={buttonClass("secondary", "md")}
-                    title="Recomputes end-of-game prizes (fastest bingo, unluckiest)."
-                  >
+                  <SubmitButton variant="secondary" size="md">
                     Recompute prizes
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
             </div>
@@ -546,12 +535,9 @@ function ReuseToggleCard({
       <form
         action={setReuseUnlocked.bind(null, eventCode, !reuseUnlocked)}
       >
-        <button
-          type="submit"
-          className={buttonClass(reuseUnlocked ? "secondary" : "primary", "sm")}
-        >
+        <SubmitButton variant={reuseUnlocked ? "secondary" : "primary"} size="sm">
           {reuseUnlocked ? "Turn off reuse" : "Turn on reuse"}
-        </button>
+        </SubmitButton>
       </form>
     </Card>
   );
@@ -582,12 +568,9 @@ function ShowAllMatchesToggle({
       <form
         action={setShowAllMatches.bind(null, eventCode, !showAllMatches)}
       >
-        <button
-          type="submit"
-          className={buttonClass(showAllMatches ? "secondary" : "primary", "sm")}
-        >
+        <SubmitButton variant={showAllMatches ? "secondary" : "primary"} size="sm">
           {showAllMatches ? "Use auto-select" : "Show all matches"}
-        </button>
+        </SubmitButton>
       </form>
     </Card>
   );
