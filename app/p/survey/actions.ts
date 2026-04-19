@@ -87,7 +87,9 @@ export async function upsertAnswer(formData: FormData): Promise<void> {
   );
   if (error) throw new Error(error.message);
 
-  revalidatePath("/p/survey");
+  // No revalidatePath here — the client tracks answer state optimistically.
+  // Revalidating mid-typing causes a server re-render that races with
+  // in-flight keystrokes, dropping letters on mobile.
 }
 
 async function deleteAnswer(
