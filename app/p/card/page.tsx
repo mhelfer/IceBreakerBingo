@@ -72,7 +72,7 @@ export default async function PlayerCardPage() {
       .order("position"),
     supabase
       .from("claims")
-      .select("position, via_player_id, players(display_name)")
+      .select("position, via_player_id, conversation_prompt, players(display_name)")
       .eq("card_id", card.id),
   ]);
 
@@ -81,7 +81,10 @@ export default async function PlayerCardPage() {
       const via = Array.isArray(c.players) ? c.players[0] : c.players;
       return [
         c.position,
-        { viaDisplayName: via?.display_name ?? "Teammate" },
+        {
+          viaDisplayName: via?.display_name ?? "Teammate",
+          conversationPrompt: c.conversation_prompt as string | null,
+        },
       ];
     }),
   );
@@ -104,7 +107,7 @@ export default async function PlayerCardPage() {
     return {
       position: r.position,
       squareText: tt.square_text,
-      conversationPrompt: tt.conversation_prompt,
+      conversationPrompt: claim?.conversationPrompt ?? tt.conversation_prompt,
       kind: tt.kind as "cohort" | "discovery",
       claimed: !!claim,
       viaDisplayName: claim?.viaDisplayName ?? null,

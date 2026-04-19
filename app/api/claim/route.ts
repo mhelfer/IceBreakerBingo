@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   // Idempotency: same key → original claim returned verbatim.
   const { data: existing } = await supabase
     .from("claims")
-    .select("id, position, via_player_id, trait_template_id")
+    .select("id, position, via_player_id, trait_template_id, conversation_prompt")
     .eq("card_id", card.id)
     .eq("idempotency_key", body.idempotencyKey)
     .maybeSingle();
@@ -96,6 +96,7 @@ export async function POST(req: Request) {
       supabase,
       existing.via_player_id,
       template,
+      existing.conversation_prompt,
     );
     const bingoCount = await countBingos(supabase, card.id);
     return NextResponse.json({
@@ -131,6 +132,9 @@ export async function POST(req: Request) {
     .maybeSingle();
   if (!trait) return bad("that teammate does not match this square");
 
+  // Build the reveal before inserting so we can persist the prompt.
+  const reveal = await buildReveal(supabase, scanned.id, template);
+
   // Insert the claim. unique(card_id, position) catches same-square races.
   const { error: insertErr } = await supabase.from("claims").insert({
     card_id: card.id,
@@ -138,6 +142,7 @@ export async function POST(req: Request) {
     via_player_id: scanned.id,
     trait_template_id: template.id,
     idempotency_key: body.idempotencyKey,
+    conversation_prompt: reveal.conversationPrompt,
   });
   if (insertErr) {
     // 23505 = unique violation → someone else claimed this square first.
@@ -210,8 +215,6 @@ export async function POST(req: Request) {
     });
   }
 
-  const reveal = await buildReveal(supabase, scanned.id, template);
-
   return NextResponse.json({
     ok: true,
     claimed: true,
@@ -269,6 +272,7 @@ async function buildReveal(
     square_text: string;
     conversation_prompt: string | null;
   },
+  cachedPrompt?: string | null,
 ): Promise<Reveal> {
   const { data: via } = await supabase
     .from("players")
@@ -276,6 +280,16 @@ async function buildReveal(
     .eq("id", viaPlayerId)
     .single();
   const viaName = via?.display_name ?? "Teammate";
+
+  // If we have a cached prompt (from a prior claim), reuse it directly.
+  if (cachedPrompt) {
+    return {
+      squareText: template.square_text,
+      conversationPrompt: cachedPrompt,
+      kind: template.kind as "cohort" | "discovery",
+      viaDisplayName: viaName,
+    };
+  }
 
   if (template.kind === "cohort") {
     return {

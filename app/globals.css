@@ -39,6 +39,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@keyframes slideDown {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
 /* Tighter focus rings that match the neutral palette */
 :where(button, a, input, textarea, select, [role="button"]):focus-visible {
   outline: 2px solid var(--ring);

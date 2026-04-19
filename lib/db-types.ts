@@ -149,6 +149,7 @@ export type Database = {
         Row: {
           card_id: string
           claimed_at: string
+          conversation_prompt: string | null
           id: string
           idempotency_key: string
           position: number
@@ -158,6 +159,7 @@ export type Database = {
         Insert: {
           card_id: string
           claimed_at?: string
+          conversation_prompt?: string | null
           id?: string
           idempotency_key: string
           position: number
@@ -167,6 +169,7 @@ export type Database = {
         Update: {
           card_id?: string
           claimed_at?: string
+          conversation_prompt?: string | null
           id?: string
           idempotency_key?: string
           position?: number
