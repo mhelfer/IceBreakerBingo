@@ -7,7 +7,11 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireFacilitator } from "@/lib/session";
 import { parseCsv } from "@/lib/csv";
 import { generate96BitToken } from "@/lib/ids";
-import { STARTER_QUESTIONS } from "@/lib/questionTemplate";
+import {
+  STARTER_QUESTIONS,
+  TEXT_ANSWER_POOLS,
+  GENERIC_TEXT_POOL,
+} from "@/lib/questionTemplate";
 import { seedsForQuestion, type MatchRule } from "@/lib/traits";
 import { generateCards } from "@/lib/cardGenIO";
 import { fastestBingoWinners, unluckiestWinners } from "@/lib/prizes";
@@ -382,6 +386,51 @@ export async function uploadRoster(
   revalidatePath(`/admin/${event.code}`);
 }
 
+export async function addPlayers(
+  eventCode: string,
+  formData: FormData,
+): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "draft" && event.state !== "survey_open") {
+    throw new Error("Cannot add players after the survey closes.");
+  }
+
+  const raw = formData.get("csv");
+  if (typeof raw !== "string" || raw.trim() === "") {
+    throw new Error("Paste at least one row.");
+  }
+
+  const rows = parseCsv(raw);
+  if (rows.length === 0) throw new Error("No rows parsed from CSV.");
+
+  const header = rows[0].map((c) => c.trim().toLowerCase());
+  const hasHeader =
+    header[0] === "display_name" ||
+    header[0] === "name" ||
+    header[0] === "display name";
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+
+  const players = dataRows.map((cols, idx) => {
+    const display_name = cols[0]?.trim();
+    if (!display_name) {
+      throw new Error(`Row ${idx + 1 + (hasHeader ? 1 : 0)} missing a name.`);
+    }
+    const contact_handle = cols[1]?.trim() || null;
+    return {
+      event_id: event.id,
+      display_name,
+      contact_handle,
+      access_code: generate96BitToken(),
+      qr_nonce: generate96BitToken(),
+    };
+  });
+
+  const ins = await supabase.from("players").insert(players);
+  if (ins.error) throw new Error(ins.error.message);
+
+  revalidatePath(`/admin/${event.code}`);
+}
+
 export async function clearRoster(eventCode: string): Promise<void> {
   const { supabase, event } = await loadOwnedEvent(eventCode);
   if (event.state !== "draft") {
@@ -438,7 +487,7 @@ export async function forkStarterQuestions(eventCode: string): Promise<void> {
     .select("id, type, prompt, options, position");
   if (qErr || !inserted) throw new Error(qErr?.message ?? "question insert failed");
 
-  // Build trait templates using the starter template's custom wording.
+  // Build trait templates using the starter template's per-option square data.
   const traitRows: {
     event_id: string;
     question_id: string;
@@ -446,31 +495,33 @@ export async function forkStarterQuestions(eventCode: string): Promise<void> {
     match_rule: MatchRule | null;
     square_text: string;
     conversation_prompt: string | null;
+    enabled: boolean;
   }[] = [];
   for (const row of inserted) {
     const starter = STARTER_QUESTIONS[row.position];
     if (!starter) continue;
     if (starter.type === "text") {
+      const sq = starter.squares[0];
       traitRows.push({
         event_id: event.id,
         question_id: row.id,
         kind: "discovery",
         match_rule: null,
-        square_text: (
-          starter.discovery_square_text ?? `Learn: ${starter.prompt}`
-        ).slice(0, 36),
+        square_text: (sq?.squareText ?? `Learn: ${starter.prompt}`).slice(0, 36),
         conversation_prompt: null,
+        enabled: sq?.enabled ?? true,
       });
     } else {
       const op: MatchRule["op"] = starter.type === "multi" ? "includes" : "eq";
-      for (const opt of starter.options ?? []) {
+      for (const sq of starter.squares) {
         traitRows.push({
           event_id: event.id,
           question_id: row.id,
           kind: "cohort",
-          match_rule: { op, value: opt },
-          square_text: (starter.cohort_square_text?.(opt) ?? opt).slice(0, 36),
-          conversation_prompt: starter.cohort_prompt?.(opt) ?? null,
+          match_rule: { op, value: sq.answer },
+          square_text: sq.squareText.slice(0, 36),
+          conversation_prompt: sq.prompt || null,
+          enabled: sq.enabled,
         });
       }
     }
@@ -780,6 +831,93 @@ export async function removeQuestionOption(
     const del = await supabase.from("trait_templates").delete().in("id", toDelete);
     if (del.error) throw new Error(del.error.message);
   }
+
+  revalidatePath(`/admin/${event.code}`);
+}
+
+// ---------------------------------------------------------------------------
+// Seed remaining survey responses (testing aid)
+// ---------------------------------------------------------------------------
+
+export async function seedRemainingResponses(
+  eventCode: string,
+): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "survey_open") {
+    throw new Error("Can only seed responses while the survey is open.");
+  }
+
+  // Players who have not yet submitted.
+  const { data: allPlayers, error: pErr } = await supabase
+    .from("players")
+    .select("id")
+    .eq("event_id", event.id)
+    .is("survey_submitted_at", null);
+  if (pErr) throw new Error(pErr.message);
+  const unseeded = allPlayers ?? [];
+  if (unseeded.length === 0) return;
+
+  // Load questions for this event.
+  const { data: questions, error: qErr } = await supabase
+    .from("survey_questions")
+    .select("id, prompt, type, options")
+    .eq("event_id", event.id)
+    .order("position");
+  if (qErr || !questions) throw new Error(qErr?.message ?? "no questions");
+
+  // Build all response rows.
+  type ResponseInsert = {
+    player_id: string;
+    question_id: string;
+    value: string | string[];
+  };
+  const responses: ResponseInsert[] = [];
+
+  for (const player of unseeded) {
+    for (const q of questions) {
+      const opts = (q.options as string[] | null) ?? [];
+      let value: string | string[];
+
+      if (q.type === "text") {
+        const pool = TEXT_ANSWER_POOLS[q.prompt] ?? GENERIC_TEXT_POOL;
+        value = pool[Math.floor(Math.random() * pool.length)];
+      } else if (q.type === "multi") {
+        // Pick 1–3 random options (no duplicates).
+        const count = Math.min(
+          1 + Math.floor(Math.random() * 3),
+          opts.length,
+        );
+        const shuffled = [...opts].sort(() => Math.random() - 0.5);
+        value = shuffled.slice(0, count);
+      } else {
+        // single, binary, numeric_bucket — pick one.
+        value = opts[Math.floor(Math.random() * opts.length)];
+      }
+
+      responses.push({
+        player_id: player.id,
+        question_id: q.id,
+        value,
+      });
+    }
+  }
+
+  // Batch-upsert responses (safe if a player partially answered).
+  if (responses.length > 0) {
+    const { error: rErr } = await supabase
+      .from("survey_responses")
+      .upsert(responses, { onConflict: "player_id,question_id" });
+    if (rErr) throw new Error(rErr.message);
+  }
+
+  // Mark all seeded players as submitted.
+  const ids = unseeded.map((p) => p.id);
+  const { error: uErr } = await supabase
+    .from("players")
+    .update({ survey_submitted_at: new Date().toISOString() })
+    .in("id", ids)
+    .is("survey_submitted_at", null);
+  if (uErr) throw new Error(uErr.message);
 
   revalidatePath(`/admin/${event.code}`);
 }
