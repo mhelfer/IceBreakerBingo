@@ -5,8 +5,8 @@
 //   - 1 event in state `survey_closed` with auto-generated trait templates
 //     matching the built-in STARTER_QUESTIONS set (same prompts/options as
 //     "Load starter template" in the admin UI)
-//   - 28 players (round-robin distribution). 28 is the smallest multiple of
-//     7 (the widest cohort option list in STARTER_QUESTIONS — first
+//   - 32 players (round-robin distribution). 32 is the smallest multiple of
+//     8 (the widest cohort option list in STARTER_QUESTIONS — first
 //     programming language) ≥ 24, so every enabled cohort bucket sits at
 //     ≥ 4 matchers and tolerates a 1-absentee drop at Start Game without
 //     falling below the MIN_MATCHERS = 3 floor.
@@ -22,7 +22,11 @@ import type { Database } from "../lib/db-types.ts";
 import { hashPassword } from "../lib/password.ts";
 import { encodeSession } from "../lib/session-token.ts";
 import { generateEventCode, generate96BitToken } from "../lib/ids.ts";
-import { STARTER_QUESTIONS } from "../lib/questionTemplate.ts";
+import {
+  STARTER_QUESTIONS,
+  TEXT_ANSWER_POOLS,
+  GENERIC_TEXT_POOL,
+} from "../lib/questionTemplate.ts";
 import type { MatchRule } from "../lib/traits.ts";
 
 const supabase = createClient<Database>(
@@ -31,177 +35,7 @@ const supabase = createClient<Database>(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-const PLAYER_COUNT = 28;
-
-// Realistic text-answer pools per starter prompt. Keyed by prompt so if the
-// starter set is reordered or the question text is tweaked the match is still
-// obvious. Any text-type prompt missing from this map falls back to a generic
-// pool below.
-const TEXT_ANSWERS: Record<string, string[]> = {
-  "Where did you grow up?": [
-    "Austin, TX",
-    "Brooklyn, NY",
-    "Seattle, WA",
-    "Portland, OR",
-    "Denver, CO",
-    "small town in Vermont",
-    "rural Ohio",
-    "Toronto, Canada",
-    "outside Chicago",
-    "Dublin, Ireland",
-    "Lagos, Nigeria",
-    "Bangalore, India",
-    "São Paulo, Brazil",
-    "Berlin, Germany",
-    "Tokyo suburbs",
-    "Melbourne, Australia",
-    "a farm in Iowa",
-    "Miami, FL",
-    "Mexico City",
-    "northern California",
-    "Boston area",
-    "Edinburgh, Scotland",
-    "Nairobi, Kenya",
-    "Manila, Philippines",
-  ],
-  "What's your non-tech hobby?": [
-    "bread baking",
-    "bouldering",
-    "urban sketching",
-    "birdwatching",
-    "home roasting coffee",
-    "salsa dancing",
-    "pottery",
-    "trail running",
-    "woodworking",
-    "board game design",
-    "open-water swimming",
-    "film photography",
-    "gardening",
-    "ultimate frisbee",
-    "fermenting hot sauce",
-    "chess puzzles",
-    "touring coffee shops",
-    "stand-up paddleboarding",
-    "cooking Sichuan food",
-    "restoring vintage bikes",
-    "D&D campaigns",
-    "knitting socks",
-    "foraging mushrooms",
-    "amateur astronomy",
-  ],
-  "What's a weird or unexpected skill you have?": [
-    "can name every state capital in under 90s",
-    "perfect pitch",
-    "whistle with two fingers really loud",
-    "recite Pi to 120 digits",
-    "juggle four balls",
-    "identify birds by call",
-    "solve a Rubik's cube sub-2min",
-    "write mirror-image with either hand",
-    "tie a cherry stem with my tongue",
-    "wiggle ears independently",
-    "throw a boomerang",
-    "read upside-down fluently",
-    "do a standing backflip",
-    "play the theremin",
-    "fold a fitted sheet cleanly",
-    "remember every phone number I've ever had",
-    "can moonwalk on carpet",
-    "parallel park a 24ft trailer",
-    "sharpen knives freehand",
-    "unicycle",
-    "speak fluent Klingon",
-    "whistle two notes at once",
-    "draw a perfect freehand circle",
-    "throw playing cards into a hat across the room",
-  ],
-  "What's your favorite debugging snack?": [
-    "gummy bears",
-    "dark chocolate",
-    "trail mix",
-    "cold brew",
-    "popcorn",
-    "apple slices & peanut butter",
-    "sour patch kids",
-    "espresso shots",
-    "wasabi peas",
-    "string cheese",
-    "matcha latte",
-    "pretzels",
-    "almonds",
-    "skittles",
-    "kombucha",
-    "beef jerky",
-    "pickles",
-    "green tea",
-    "dried mango",
-    "goldfish crackers",
-    "ice water, honestly",
-    "peanut M&Ms",
-    "clementines",
-    "hot sauce on anything",
-  ],
-  "Dream side project?": [
-    "an offline-first recipe app",
-    "a newsletter about weird APIs",
-    "a tiny indie game",
-    "a custom mechanical keyboard firmware",
-    "a podcast about infrastructure war stories",
-    "an e-ink dashboard for the fridge",
-    "a music theory learning tool",
-    "an open-source home automation hub",
-    "a CLI for tracking reading habits",
-    "a plant-watering robot",
-    "a subway arrival display for my desk",
-    "a local-first note app",
-    "a birdwatching log with ML ID",
-    "a PCB business-card synth",
-    "a zine about old programming languages",
-    "a weather station on the roof",
-    "a text adventure engine",
-    "a habit tracker that actually sticks",
-    "an ambient-soundscape generator",
-    "a home wiki with spaced repetition",
-    "a CLI for baking timers",
-    "a SaaS for D&D DMs",
-    "a coffee-roast profile tracker",
-    "a Markdown-first blog engine",
-  ],
-  "What's a conference you've been to?": [
-    "Strange Loop",
-    "PyCon",
-    "KubeCon",
-    "JSConf",
-    "RustConf",
-    "GopherCon",
-    "AWS re:Invent",
-    "DockerCon",
-    "!!Con",
-    "RailsConf",
-    "DEF CON",
-    "Black Hat",
-    "GDC",
-    "PgConf",
-    "React Conf",
-    "Open Source Summit",
-    "QCon",
-    "DevOpsDays",
-    "ElixirConf",
-    "Config (Figma)",
-    "Cascadia JS",
-    "SRECon",
-    "FOSDEM",
-    "Monktoberfest",
-  ],
-};
-
-const GENERIC_TEXT_FALLBACK = [
-  "answer one",
-  "answer two",
-  "answer three",
-  "answer four",
-];
+const PLAYER_COUNT = 32;
 
 // Round-robin picker for single/binary/numeric cohort answers. Offsetting by
 // qi keeps distribution uncorrelated across questions (no player ends up in
@@ -220,7 +54,7 @@ function pickMulti(pi: number, qi: number, options: string[]): string[] {
 }
 
 function pickText(pi: number, prompt: string): string {
-  const pool = TEXT_ANSWERS[prompt] ?? GENERIC_TEXT_FALLBACK;
+  const pool = TEXT_ANSWER_POOLS[prompt] ?? GENERIC_TEXT_POOL;
   return pool[pi % pool.length];
 }
 
@@ -283,7 +117,7 @@ const { data: insertedQs, error: qErr } = await supabase
   .order("position");
 if (qErr || !insertedQs) throw new Error(qErr?.message ?? "no questions");
 
-// Build trait templates, mirroring forkStarterQuestions().
+// Build trait templates using the starter template's per-option square data.
 const traitRows: {
   event_id: string;
   question_id: string;
@@ -297,28 +131,27 @@ for (const row of insertedQs) {
   const starter = STARTER_QUESTIONS[row.position];
   if (!starter) continue;
   if (starter.type === "text") {
+    const sq = starter.squares[0];
     traitRows.push({
       event_id: ev.id,
       question_id: row.id,
       kind: "discovery",
       match_rule: null,
-      square_text: (
-        starter.discovery_square_text ?? `Learn: ${starter.prompt}`
-      ).slice(0, 36),
+      square_text: (sq?.squareText ?? `Learn: ${starter.prompt}`).slice(0, 36),
       conversation_prompt: null,
-      enabled: true,
+      enabled: sq?.enabled ?? true,
     });
   } else {
     const op: MatchRule["op"] = starter.type === "multi" ? "includes" : "eq";
-    for (const opt of starter.options ?? []) {
+    for (const sq of starter.squares) {
       traitRows.push({
         event_id: ev.id,
         question_id: row.id,
         kind: "cohort",
-        match_rule: { op, value: opt },
-        square_text: (starter.cohort_square_text?.(opt) ?? opt).slice(0, 36),
-        conversation_prompt: starter.cohort_prompt?.(opt) ?? null,
-        enabled: true,
+        match_rule: { op, value: sq.answer },
+        square_text: sq.squareText.slice(0, 36),
+        conversation_prompt: sq.prompt || null,
+        enabled: sq.enabled,
       });
     }
   }
