@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { SurveyForm, type SurveyQuestion } from "./SurveyForm";
+import { PlayerAutoRefresh } from "../PlayerAutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,14 @@ export default async function SurveyPage() {
     .eq("id", session.event_id)
     .maybeSingle();
   if (!event) redirect("/p/link-invalid");
-  if (event.state !== "survey_open") redirect("/p/not-yet");
+
+  // Game is live or ended — go straight to the card
+  if (event.state === "live" || event.state === "ended") redirect("/p/card");
+  // Draft — survey isn't open yet
+  if (event.state === "draft") redirect("/p/not-yet");
+
+  const readOnly =
+    event.state === "survey_closed" || event.state === "curation_locked";
 
   const { data: player } = await supabase
     .from("players")
@@ -25,7 +33,6 @@ export default async function SurveyPage() {
     .eq("id", session.player_id)
     .maybeSingle();
   if (!player) redirect("/p/link-invalid");
-  if (player.survey_submitted_at) redirect("/p/survey-done");
 
   const [{ data: qs }, { data: rs }] = await Promise.all([
     supabase
@@ -57,11 +64,19 @@ export default async function SurveyPage() {
         <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-zinc-900">
           Hi, {player.display_name}
         </h1>
-        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-500">
-          <Lock size={11} /> Private — nobody else sees your answers.
-        </p>
+        {!readOnly && (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-500">
+            <Lock size={11} /> Private — nobody else sees your answers.
+          </p>
+        )}
       </header>
-      <SurveyForm questions={questions} initial={initial} />
+      <SurveyForm
+        questions={questions}
+        initial={initial}
+        readOnly={readOnly}
+        initiallySubmitted={!!player.survey_submitted_at}
+      />
+      <PlayerAutoRefresh />
     </main>
   );
 }

@@ -3,6 +3,7 @@ import { Clock } from "lucide-react";
 import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { PlayerHero } from "../../PlayerHero";
+import { PlayerAutoRefresh } from "../../PlayerAutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function PlayerEntryPage() {
   const { data: player } = await supabase
     .from("players")
     .select(
-      "id, display_name, survey_submitted_at, events(state, name, starts_at)",
+      "id, display_name, events(state, name, starts_at)",
     )
     .eq("id", session.player_id)
     .maybeSingle();
@@ -27,47 +28,58 @@ export default async function PlayerEntryPage() {
   const event = Array.isArray(player.events) ? player.events[0] : player.events;
   if (!event) redirect("/p/link-invalid");
 
-  if (event.state === "survey_open") {
-    redirect(player.survey_submitted_at ? "/p/survey-done" : "/p/survey");
+  // Survey open, closed, or curation locked — all go to the survey page
+  // (which handles editable vs read-only mode internally)
+  if (
+    event.state === "survey_open" ||
+    event.state === "survey_closed" ||
+    event.state === "curation_locked"
+  ) {
+    redirect("/p/survey");
   }
   if (event.state === "live" || event.state === "ended") {
     redirect("/p/card");
   }
 
+  // Draft state — survey hasn't opened yet. Auto-refresh so the page
+  // transitions automatically when the facilitator opens the survey.
   return (
-    <PlayerHero
-      icon={<Clock size={20} />}
-      tone="muted"
-      eyebrow={event.name}
-      title={`Hi, ${player.display_name}`}
-      body={
-        <>
-          {event.starts_at ? (
-            <p>
-              The game starts{" "}
-              <time
-                dateTime={event.starts_at}
-                className="font-medium text-zinc-800"
-              >
-                {new Date(event.starts_at).toLocaleString(undefined, {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </time>
-              .
+    <>
+      <PlayerHero
+        icon={<Clock size={20} />}
+        tone="muted"
+        eyebrow={event.name}
+        title={`Hi, ${player.display_name}`}
+        body={
+          <>
+            {event.starts_at ? (
+              <p>
+                The game starts{" "}
+                <time
+                  dateTime={event.starts_at}
+                  className="font-medium text-zinc-800"
+                >
+                  {new Date(event.starts_at).toLocaleString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </time>
+                .
+              </p>
+            ) : (
+              <p>The facilitator hasn&rsquo;t started the game yet.</p>
+            )}
+            <p className="mt-2">
+              Reload this page when the game starts to grab your bingo card.
             </p>
-          ) : (
-            <p>The facilitator hasn&rsquo;t started the game yet.</p>
-          )}
-          <p className="mt-2">
-            Reload this page when the game starts to grab your bingo card.
-          </p>
-        </>
-      }
-      footer="This link is personal — please don't share it."
-    />
+          </>
+        }
+        footer="This link is personal — please don't share it."
+      />
+      <PlayerAutoRefresh />
+    </>
   );
 }
