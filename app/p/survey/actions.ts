@@ -10,27 +10,15 @@ const uuidSchema = z.string().uuid();
 async function loadSurveyContext() {
   const session = await requirePlayer();
   const supabase = getSupabaseAdmin();
-  const [{ data: event, error }, { data: player, error: pErr }] =
-    await Promise.all([
-      supabase
-        .from("events")
-        .select("id, state")
-        .eq("id", session.event_id)
-        .maybeSingle(),
-      supabase
-        .from("players")
-        .select("survey_submitted_at")
-        .eq("id", session.player_id)
-        .maybeSingle(),
-    ]);
+  const { data: event, error } = await supabase
+    .from("events")
+    .select("id, state")
+    .eq("id", session.event_id)
+    .maybeSingle();
   if (error) throw new Error(error.message);
-  if (pErr) throw new Error(pErr.message);
   if (!event) throw new Error("EVENT_NOT_FOUND");
   if (event.state !== "survey_open") {
     throw new Error("Survey is not open.");
-  }
-  if (player?.survey_submitted_at) {
-    throw new Error("Survey already submitted.");
   }
   return { supabase, session, event };
 }
@@ -119,6 +107,14 @@ export async function submitSurvey(): Promise<
   { ok: true } | { ok: false; missing: string[] }
 > {
   const { supabase, session } = await loadSurveyContext();
+
+  // Idempotent: if already submitted, return ok immediately.
+  const { data: player } = await supabase
+    .from("players")
+    .select("survey_submitted_at")
+    .eq("id", session.player_id)
+    .maybeSingle();
+  if (player?.survey_submitted_at) return { ok: true };
 
   const [{ data: qs, error: qErr }, { data: rs, error: rErr }] = await Promise.all([
     supabase

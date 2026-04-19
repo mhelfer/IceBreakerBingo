@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, useTransition } from "react";
-import { AlertCircle, Check, Loader2 } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, Loader2 } from "lucide-react";
 import { upsertAnswer, submitSurvey } from "./actions";
 
 export type SurveyQuestion = {
@@ -35,9 +35,13 @@ function isAnswered(v: string | string[] | null): boolean {
 export function SurveyForm({
   questions,
   initial,
+  readOnly = false,
+  initiallySubmitted = false,
 }: {
   questions: SurveyQuestion[];
   initial: InitialAnswer[];
+  readOnly?: boolean;
+  initiallySubmitted?: boolean;
 }) {
   const [answers, setAnswers] = useState<Record<string, AnswerState>>(() => {
     const m: Record<string, AnswerState> = {};
@@ -52,6 +56,7 @@ export function SurveyForm({
   });
   const [missing, setMissing] = useState<string[] | null>(null);
   const [submitting, startSubmit] = useTransition();
+  const [submitted, setSubmitted] = useState(initiallySubmitted);
 
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -76,6 +81,7 @@ export function SurveyForm({
       ...prev,
       [q.id]: { value: next, saving: true, saved: false },
     }));
+    setSubmitted(false);
 
     const fd = new FormData();
     fd.set("question_id", q.id);
@@ -108,7 +114,8 @@ export function SurveyForm({
       if (!res.ok) {
         setMissing(res.missing);
       } else {
-        window.location.href = "/p/survey-done";
+        setSubmitted(true);
+        setMissing(null);
       }
     });
   }
@@ -120,24 +127,72 @@ export function SurveyForm({
   const pct = questions.length === 0 ? 0 : (totalAnswered / questions.length) * 100;
   const allAnswered = totalAnswered === questions.length;
 
+  // --- Read-only mode (survey closed) ---
+  if (readOnly) {
+    return (
+      <>
+        <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur">
+          <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+            <CheckCircle2 size={14} className="text-zinc-400" />
+            Survey closed — the game will start soon.
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4 pt-5 pb-10">
+          {questions.map((q, idx) => {
+            const a = answers[q.id] ?? { value: null, saving: false, saved: false };
+            return (
+              <section
+                key={q.id}
+                className="rounded-lg border border-zinc-100 bg-zinc-50/50 p-4"
+              >
+                <p className="text-sm font-medium text-zinc-600">
+                  <span className="mr-1.5 text-zinc-400">{idx + 1}.</span>
+                  {q.prompt}
+                </p>
+                <div className="mt-2 text-sm text-zinc-900">
+                  {Array.isArray(a.value)
+                    ? a.value.join(", ")
+                    : a.value || (
+                        <span className="italic text-zinc-400">No answer</span>
+                      )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </>
+    );
+  }
+
+  // --- Editable mode (survey open) ---
   return (
     <>
       <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur">
-        <div className="flex items-center justify-between gap-3 text-xs">
-          <span className="font-medium text-zinc-900">
-            {totalAnswered} / {questions.length} answered
-          </span>
-          <span className="text-zinc-500">
-            {allAnswered ? "Ready to submit" : "Keep going"}
-          </span>
-        </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100">
-          <div
-            className="h-full rounded-full bg-emerald-500 transition-all"
-            style={{ width: `${pct}%` }}
-            aria-hidden
-          />
-        </div>
+        {submitted ? (
+          <div className="flex items-center gap-2 text-xs font-medium text-emerald-700">
+            <CheckCircle2 size={14} />
+            Submitted! You can still update your answers until the survey closes.
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-medium text-zinc-900">
+                {totalAnswered} / {questions.length} answered
+              </span>
+              <span className="text-zinc-500">
+                {allAnswered ? "Ready to submit" : "Keep going"}
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: `${pct}%` }}
+                aria-hidden
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 pt-5 pb-40">
@@ -271,20 +326,30 @@ export function SurveyForm({
               <span>Answer these first: {missing.join(", ")}</span>
             </div>
           ) : null}
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={!allAnswered || submitting}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {submitting ? (
-              <>
-                <Loader2 size={14} className="animate-spin" /> Submitting…
-              </>
-            ) : (
-              "Submit survey"
-            )}
-          </button>
+          {submitted ? (
+            <button
+              type="button"
+              disabled
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 text-sm font-medium text-white"
+            >
+              <Check size={14} /> Submitted
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!allAnswered || submitting}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" /> Submitting…
+                </>
+              ) : (
+                "Submit survey"
+              )}
+            </button>
+          )}
         </div>
       </div>
     </>
