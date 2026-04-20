@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, Clock, Download, Plus, Shuffle, Upload, Users } from "lucide-react";
+import { useRef, useState } from "react";
+import { CheckCircle2, Clock, Download, Plus, Shuffle, Trash2, Upload, Users } from "lucide-react";
 import { Banner } from "@/app/components/ui/Banner";
 import { buttonClass, Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -10,7 +11,9 @@ import { Label, Textarea } from "@/app/components/ui/Input";
 import {
   addPlayers,
   clearRoster,
-  remintAccessCode,
+  removePlayer,
+  renamePlayer,
+  rotateAccessCode,
   seedRemainingResponses,
   uploadRoster,
 } from "./actions";
@@ -38,7 +41,8 @@ export function RosterSection({
 }) {
   const canEdit = state === "draft";
   const showLinks = state !== "draft";
-  const canRemint = state !== "ended";
+  const canRotate = state !== "ended";
+  const canDelete = state === "draft" || state === "survey_open";
   const pendingCount = players.filter((p) => !p.survey_submitted_at).length;
 
   if (players.length === 0) {
@@ -108,13 +112,11 @@ export function RosterSection({
               </a>
             </>
           ) : null}
-          {state === "survey_open" ? (
-            <>
-              <AddPlayersDialog eventCode={eventCode} />
-              {pendingCount > 0 ? (
-                <SeedRemainingDialog eventCode={eventCode} count={pendingCount} />
-              ) : null}
-            </>
+          {state === "draft" || state === "survey_open" ? (
+            <AddPlayersDialog eventCode={eventCode} />
+          ) : null}
+          {state === "survey_open" && pendingCount > 0 ? (
+            <SeedRemainingDialog eventCode={eventCode} count={pendingCount} />
           ) : null}
           {canEdit ? (
             <>
@@ -137,7 +139,7 @@ export function RosterSection({
               <th className="px-4 py-2.5">Handle</th>
               <th className="px-4 py-2.5">Survey</th>
               {showLinks ? <th className="px-4 py-2.5">Access link</th> : null}
-              {canRemint && showLinks ? (
+              {canDelete || (canRotate && showLinks) ? (
                 <th className="px-4 py-2.5 text-right">Actions</th>
               ) : null}
             </tr>
@@ -148,7 +150,11 @@ export function RosterSection({
               return (
                 <tr key={p.id} className="hover:bg-zinc-50/60">
                   <td className="px-4 py-2.5 font-medium text-zinc-900">
-                    {p.display_name}
+                    <EditableName
+                      eventCode={eventCode}
+                      playerId={p.id}
+                      name={p.display_name}
+                    />
                   </td>
                   <td className="px-4 py-2.5 text-zinc-500">
                     {p.contact_handle ?? "—"}
@@ -174,20 +180,38 @@ export function RosterSection({
                       </div>
                     </td>
                   ) : null}
-                  {canRemint && showLinks ? (
+                  {canDelete || (canRotate && showLinks) ? (
                     <td className="px-4 py-2 text-right">
-                      <form
-                        action={remintAccessCode.bind(null, eventCode, p.id)}
-                        className="inline"
-                      >
-                        <button
-                          type="submit"
-                          className={buttonClass("ghost", "sm")}
-                          title="Rotate access code — old link stops working"
-                        >
-                          Re-mint
-                        </button>
-                      </form>
+                      <div className="inline-flex items-center gap-1">
+                        {canRotate && showLinks ? (
+                          <form
+                            action={rotateAccessCode.bind(null, eventCode, p.id)}
+                            className="inline"
+                          >
+                            <button
+                              type="submit"
+                              className={buttonClass("ghost", "sm")}
+                              title="Rotate access code — old link stops working"
+                            >
+                              Rotate link
+                            </button>
+                          </form>
+                        ) : null}
+                        {canDelete ? (
+                          <form
+                            action={removePlayer.bind(null, eventCode, p.id)}
+                            className="inline"
+                          >
+                            <button
+                              type="submit"
+                              className={buttonClass("ghost", "sm")}
+                              title={`Remove ${p.display_name}`}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
                     </td>
                   ) : null}
                 </tr>
@@ -203,6 +227,63 @@ export function RosterSection({
 function csvCell(s: string): string {
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
+}
+
+function EditableName({
+  eventCode,
+  playerId,
+  name,
+}: {
+  eventCode: string;
+  playerId: string;
+  name: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function save() {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === name) {
+      setValue(name);
+      setEditing(false);
+      return;
+    }
+    setEditing(false);
+    renamePlayer(eventCode, playerId, trimmed);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") {
+            setValue(name);
+            setEditing(false);
+          }
+        }}
+        autoFocus
+        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-sm font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/20"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="rounded px-1 py-0.5 text-left hover:bg-zinc-100"
+      title="Click to rename"
+    >
+      {name}
+    </button>
+  );
 }
 
 function SeedRemainingDialog({

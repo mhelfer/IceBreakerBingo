@@ -343,13 +343,15 @@ export function SurveyForm({
             </div>
           ) : null}
           {submitted ? (
-            <button
-              type="button"
-              disabled
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 text-sm font-medium text-white"
-            >
-              <Check size={14} /> Submitted
-            </button>
+            <div className="flex flex-col items-center gap-1 rounded-lg bg-emerald-50 px-4 py-4 text-center">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                <CheckCircle2 size={16} />
+                You&rsquo;re all done!
+              </div>
+              <p className="text-xs text-emerald-700">
+                You can still update your answers until the survey closes.
+              </p>
+            </div>
           ) : (
             <button
               type="button"

@@ -142,7 +142,7 @@ export async function startGame(eventCode: string): Promise<void> {
   redirect(`/facilitate/${event.code}`);
 }
 
-export async function remintAccessCode(
+export async function rotateAccessCode(
   eventCode: string,
   playerId: string,
 ): Promise<void> {
@@ -428,6 +428,42 @@ export async function addPlayers(
   const ins = await supabase.from("players").insert(players);
   if (ins.error) throw new Error(ins.error.message);
 
+  revalidatePath(`/admin/${event.code}`);
+}
+
+export async function renamePlayer(
+  eventCode: string,
+  playerId: string,
+  displayName: string,
+): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  const id = uuidSchema.parse(playerId);
+  const name = displayName.trim();
+  if (!name) throw new Error("Name cannot be empty.");
+  const { error } = await supabase
+    .from("players")
+    .update({ display_name: name })
+    .eq("id", id)
+    .eq("event_id", event.id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/admin/${event.code}`);
+}
+
+export async function removePlayer(
+  eventCode: string,
+  playerId: string,
+): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "draft" && event.state !== "survey_open") {
+    throw new Error("Cannot remove players after the survey closes.");
+  }
+  const id = uuidSchema.parse(playerId);
+  const del = await supabase
+    .from("players")
+    .delete()
+    .eq("id", id)
+    .eq("event_id", event.id);
+  if (del.error) throw new Error(del.error.message);
   revalidatePath(`/admin/${event.code}`);
 }
 
