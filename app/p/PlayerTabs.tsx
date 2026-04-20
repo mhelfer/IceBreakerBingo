@@ -31,7 +31,7 @@ export function PlayerTabs({ active }: { active: Tab }) {
                 href={t.href}
                 aria-current={isActive ? "page" : undefined}
                 className={[
-                  "flex flex-col items-center gap-0.5 px-2 pt-2.5 pb-3 text-[11px] transition",
+                  "flex flex-col items-center gap-0.5 px-2 pt-2.5 pb-4 text-[11px] transition",
                   isActive
                     ? "font-semibold text-zinc-900"
                     : "text-zinc-500 hover:text-zinc-900",

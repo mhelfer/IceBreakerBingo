@@ -138,6 +138,7 @@ export function Scanner() {
   return (
     <div className="flex flex-col gap-3">
       <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-2xl bg-black shadow-sm">
+        <style>{`#${SCANNER_ELEMENT_ID} video { object-fit: cover !important; width: 100% !important; height: 100% !important; }`}</style>
         <div id={SCANNER_ELEMENT_ID} className="h-full w-full" />
         <div
           className="pointer-events-none absolute inset-0 flex items-center justify-center"
