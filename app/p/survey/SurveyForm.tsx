@@ -60,6 +60,7 @@ export function SurveyForm({
   const [surveyClosed, setSurveyClosed] = useState(false);
 
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const saveVersions = useRef<Map<string, number>>(new Map());
 
   const debouncedUpdate = useCallback(
     (q: SurveyQuestion, next: string | string[] | null) => {
@@ -78,9 +79,12 @@ export function SurveyForm({
   );
 
   function update(q: SurveyQuestion, next: string | string[] | null): void {
+    const ver = (saveVersions.current.get(q.id) ?? 0) + 1;
+    saveVersions.current.set(q.id, ver);
+
     setAnswers((prev) => ({
       ...prev,
-      [q.id]: { value: next, saving: true, saved: false },
+      [q.id]: { ...prev[q.id], saving: true, saved: false },
     }));
     setSubmitted(false);
 
@@ -95,9 +99,10 @@ export function SurveyForm({
 
     upsertAnswer(fd)
       .then(() => {
+        if (saveVersions.current.get(q.id) !== ver) return;
         setAnswers((prev) => ({
           ...prev,
-          [q.id]: { value: next, saving: false, saved: true },
+          [q.id]: { ...prev[q.id], saving: false, saved: true },
         }));
       })
       .catch((err: unknown) => {
@@ -105,9 +110,10 @@ export function SurveyForm({
           setSurveyClosed(true);
           return;
         }
+        if (saveVersions.current.get(q.id) !== ver) return;
         setAnswers((prev) => ({
           ...prev,
-          [q.id]: { value: next, saving: false, saved: false },
+          [q.id]: { ...prev[q.id], saving: false, saved: false },
         }));
         console.error("save failed", err);
       });
