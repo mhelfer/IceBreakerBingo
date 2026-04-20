@@ -92,7 +92,7 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
     prompt: "What is your dream vacation style?",
     type: "single",
     options: [
-      "All-inclusive resort (do nothing)",
+      "Beach / Resort",
       "Backpacking / adventure travel",
       "Food and culture city trip",
       "Road trip",
@@ -100,7 +100,7 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
       "Theme parks",
     ],
     squares: [
-      { answer: "All-inclusive resort (do nothing)", squareText: "Vacation: do nothing", prompt: "What is your go-to all-inclusive move — poolside reading, swim-up bar, water aerobics, or something else?", enabled: true },
+      { answer: "Beach / Resort", squareText: "Beach / Resort person", prompt: "What is your go-to all-inclusive move — poolside reading, swim-up bar, water aerobics, or something else?", enabled: true },
       { answer: "Backpacking / adventure travel", squareText: "Adventure traveler", prompt: "What is the most adventurous trip you have taken?", enabled: true },
       { answer: "Food and culture city trip", squareText: "Foodie traveler", prompt: "Best meal you have ever had on a trip?", enabled: true },
       { answer: "Road trip", squareText: "Road tripper", prompt: "What is the longest drive you have done in one stretch?", enabled: false },
