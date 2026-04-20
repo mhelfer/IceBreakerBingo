@@ -84,7 +84,7 @@ export function SurveyForm({
 
     setAnswers((prev) => ({
       ...prev,
-      [q.id]: { ...prev[q.id], saving: true, saved: false },
+      [q.id]: { ...prev[q.id], value: next, saving: true, saved: false },
     }));
     setSubmitted(false);
 
