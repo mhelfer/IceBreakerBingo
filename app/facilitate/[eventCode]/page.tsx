@@ -117,33 +117,43 @@ export default async function FacilitateLivePage({
     .in("player_id", playerIds.length ? playerIds : ["00000000-0000-0000-0000-000000000000"]);
   const cardIds = (cardRows ?? []).map((c) => c.id);
 
-  const [{ data: claims }, { data: allClaims }, { data: bingos }] = await Promise.all([
+  const nilUuid = "00000000-0000-0000-0000-000000000000";
+  const safePlayerIds = playerIds.length ? playerIds : [nilUuid];
+  const safeCardIds = cardIds.length ? cardIds : [nilUuid];
+
+  const [
+    { data: claims },
+    { data: allClaims },
+    { data: bingos },
+    { data: playerTraits },
+    { data: allCardSquares },
+  ] = await Promise.all([
     supabase
       .from("claims")
       .select(
         "id, position, claimed_at, card_id, via_player_id, trait_template_id, cards(player_id), players:via_player_id(display_name), trait_templates(square_text)",
       )
-      .in(
-        "card_id",
-        cardIds.length ? cardIds : ["00000000-0000-0000-0000-000000000000"],
-      )
+      .in("card_id", safeCardIds)
       .order("claimed_at", { ascending: false })
       .limit(20),
     supabase
       .from("claims")
-      .select("card_id, cards(player_id)")
-      .in(
-        "card_id",
-        cardIds.length ? cardIds : ["00000000-0000-0000-0000-000000000000"],
-      ),
+      .select("card_id, position, via_player_id, cards(player_id)")
+      .in("card_id", safeCardIds),
     supabase
       .from("bingos")
       .select("id, player_id, line_type, line_index, completed_at")
-      .in(
-        "player_id",
-        playerIds.length ? playerIds : ["00000000-0000-0000-0000-000000000000"],
-      )
+      .in("player_id", safePlayerIds)
       .order("completed_at", { ascending: false }),
+    supabase
+      .from("player_traits")
+      .select("player_id, trait_template_id")
+      .in("player_id", safePlayerIds),
+    supabase
+      .from("card_squares")
+      .select("card_id, position, trait_template_id")
+      .in("card_id", safeCardIds)
+      .not("trait_template_id", "is", null),
   ]);
 
   const playerById = new Map(
@@ -169,6 +179,50 @@ export default async function FacilitateLivePage({
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
   const maxClaims = Math.max(1, topClaimers[0]?.count ?? 0);
+
+  // --- Most wanted: who can fill the most unclaimed squares for others ---
+  const claimedSet = new Set(
+    (allClaims ?? []).map((c) => `${c.card_id}:${c.position}`),
+  );
+  const traitsByPlayer = new Map<string, Set<string>>();
+  for (const pt of playerTraits ?? []) {
+    const set = traitsByPlayer.get(pt.player_id) ?? new Set();
+    set.add(pt.trait_template_id);
+    traitsByPlayer.set(pt.player_id, set);
+  }
+  const cardOwner = new Map(
+    (cardRows ?? []).map((c) => [c.id, c.player_id]),
+  );
+  const scansPerPlayer = new Map<string, number>();
+  for (const c of allClaims ?? []) {
+    scansPerPlayer.set(
+      c.via_player_id,
+      (scansPerPlayer.get(c.via_player_id) ?? 0) + 1,
+    );
+  }
+  const mostWanted = [...(players ?? [])]
+    .filter((p) => !p.absent)
+    .map((p) => {
+      const myTraits = traitsByPlayer.get(p.id) ?? new Set<string>();
+      let canFill = 0;
+      for (const sq of allCardSquares ?? []) {
+        if (!sq.trait_template_id) continue;
+        if (!myTraits.has(sq.trait_template_id)) continue;
+        const owner = cardOwner.get(sq.card_id);
+        if (owner === p.id) continue;
+        if (claimedSet.has(`${sq.card_id}:${sq.position}`)) continue;
+        canFill++;
+      }
+      return {
+        id: p.id,
+        display_name: p.display_name,
+        canFill,
+        scanned: scansPerPlayer.get(p.id) ?? 0,
+      };
+    })
+    .sort((a, b) => b.canFill - a.canFill)
+    .slice(0, 10);
+  const maxCanFill = Math.max(1, mostWanted[0]?.canFill ?? 0);
 
   const awardByPrize = new Map<Prize, typeof awards>();
   for (const a of awards ?? []) {
@@ -352,6 +406,41 @@ export default async function FacilitateLivePage({
           origin={origin}
         />
 
+        <Card className="p-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Most wanted
+            </h2>
+            <span className="text-xs text-zinc-400">who to direct people toward</span>
+          </div>
+          {mostWanted.length === 0 || mostWanted[0].canFill === 0 ? (
+            <p className="mt-3 text-sm text-zinc-500">No unclaimed matches yet.</p>
+          ) : (
+            <ul className="mt-3 flex flex-col gap-1.5 text-sm">
+              {mostWanted
+                .filter((p) => p.canFill > 0)
+                .map((p) => (
+                  <li key={p.id} className="flex items-center gap-3">
+                    <span className="w-32 truncate text-zinc-800">
+                      {p.display_name}
+                    </span>
+                    <span
+                      className="h-2 rounded-full bg-emerald-600"
+                      style={{
+                        width: `${Math.max(4, (p.canFill / maxCanFill) * 240)}px`,
+                      }}
+                      aria-hidden
+                    />
+                    <span className="ml-auto flex gap-3 font-mono text-xs text-zinc-500">
+                      <span>{p.canFill} open</span>
+                      <span>{p.scanned} scans</span>
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </Card>
+
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <Card className="p-4">
             <div className="flex items-baseline justify-between">
@@ -510,6 +599,38 @@ function PlayerLinksSection({
   );
 }
 
+function SliderToggle({
+  on,
+  action,
+  label,
+}: {
+  on: boolean;
+  action: () => void;
+  label: string;
+}) {
+  return (
+    <form action={action}>
+      <button
+        type="submit"
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        className={[
+          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
+          on ? "bg-emerald-600" : "bg-zinc-300",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform duration-200",
+            on ? "translate-x-5" : "translate-x-0",
+          ].join(" ")}
+        />
+      </button>
+    </form>
+  );
+}
+
 function ReuseToggleCard({
   eventCode,
   reuseUnlocked,
@@ -518,7 +639,7 @@ function ReuseToggleCard({
   reuseUnlocked: boolean;
 }) {
   return (
-    <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+    <Card className="flex items-center justify-between gap-3 p-4">
       <div className="flex items-start gap-3">
         <Radio size={16} className="mt-0.5 text-zinc-400" />
         <div>
@@ -532,13 +653,11 @@ function ReuseToggleCard({
           </p>
         </div>
       </div>
-      <form
+      <SliderToggle
+        on={reuseUnlocked}
         action={setReuseUnlocked.bind(null, eventCode, !reuseUnlocked)}
-      >
-        <SubmitButton variant={reuseUnlocked ? "secondary" : "primary"} size="sm">
-          {reuseUnlocked ? "Turn off reuse" : "Turn on reuse"}
-        </SubmitButton>
-      </form>
+        label="Toggle reuse teammates"
+      />
     </Card>
   );
 }
@@ -551,7 +670,7 @@ function ShowAllMatchesToggle({
   showAllMatches: boolean;
 }) {
   return (
-    <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+    <Card className="flex items-center justify-between gap-3 p-4">
       <div className="flex items-start gap-3">
         <Shuffle size={16} className="mt-0.5 text-zinc-400" />
         <div>
@@ -560,18 +679,16 @@ function ShowAllMatchesToggle({
           </h2>
           <p className="mt-0.5 text-xs text-zinc-500">
             {showAllMatches
-              ? "Show all — players pick which matching square to claim."
-              : "Auto-select — a random matching square is chosen for each scan."}
+              ? "ON — players pick which matching square to claim."
+              : "OFF — a random matching square is chosen for each scan."}
           </p>
         </div>
       </div>
-      <form
+      <SliderToggle
+        on={showAllMatches}
         action={setShowAllMatches.bind(null, eventCode, !showAllMatches)}
-      >
-        <SubmitButton variant={showAllMatches ? "secondary" : "primary"} size="sm">
-          {showAllMatches ? "Use auto-select" : "Show all matches"}
-        </SubmitButton>
-      </form>
+        label="Toggle show all matches"
+      />
     </Card>
   );
 }
