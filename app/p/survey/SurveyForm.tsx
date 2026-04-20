@@ -57,6 +57,7 @@ export function SurveyForm({
   const [missing, setMissing] = useState<string[] | null>(null);
   const [submitting, startSubmit] = useTransition();
   const [submitted, setSubmitted] = useState(initiallySubmitted);
+  const [surveyClosed, setSurveyClosed] = useState(false);
 
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -100,6 +101,10 @@ export function SurveyForm({
         }));
       })
       .catch((err: unknown) => {
+        if (err instanceof Error && /not open/i.test(err.message)) {
+          setSurveyClosed(true);
+          return;
+        }
         setAnswers((prev) => ({
           ...prev,
           [q.id]: { value: next, saving: false, saved: false },
@@ -127,8 +132,8 @@ export function SurveyForm({
   const pct = questions.length === 0 ? 0 : (totalAnswered / questions.length) * 100;
   const allAnswered = totalAnswered === questions.length;
 
-  // --- Read-only mode (survey closed) ---
-  if (readOnly) {
+  // --- Survey closed mid-edit (caught from failed save) ---
+  if (surveyClosed || readOnly) {
     return (
       <>
         <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur">
@@ -297,10 +302,15 @@ export function SurveyForm({
                               type="checkbox"
                               checked={checked}
                               onChange={(e) => {
-                                const next = e.target.checked
-                                  ? [...arr, opt]
-                                  : arr.filter((x) => x !== opt);
-                                update(q, next);
+                                const adding = e.target.checked;
+                                setAnswers((prev) => {
+                                  const cur = Array.isArray(prev[q.id]?.value) ? (prev[q.id].value as string[]) : [];
+                                  const next = adding
+                                    ? [...cur, opt]
+                                    : cur.filter((x) => x !== opt);
+                                  debouncedUpdate(q, next);
+                                  return { ...prev, [q.id]: { ...prev[q.id], value: next } };
+                                });
                               }}
                               className="sr-only"
                             />

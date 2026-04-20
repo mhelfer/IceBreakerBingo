@@ -1,4 +1,3 @@
-import { Lock } from "lucide-react";
 import { redirect } from "next/navigation";
 import { readPlayerSession } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -64,11 +63,6 @@ export default async function SurveyPage() {
         <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-zinc-900">
           Hi, {player.display_name}
         </h1>
-        {!readOnly && (
-          <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-500">
-            <Lock size={11} /> Private — nobody else sees your answers.
-          </p>
-        )}
       </header>
       <SurveyForm
         questions={questions}

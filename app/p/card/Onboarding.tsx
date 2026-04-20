@@ -176,13 +176,13 @@ export function Onboarding({ eventId }: { eventId: string }) {
 
         {/* Actions */}
         <div className="mt-6 flex items-center gap-3">
-          {!isLast ? (
+          {step > 0 ? (
             <button
               type="button"
-              onClick={dismiss}
+              onClick={() => setStep((s) => s - 1)}
               className="h-11 flex-1 rounded-md text-sm font-medium text-zinc-500 transition hover:text-zinc-900"
             >
-              Skip
+              Back
             </button>
           ) : null}
           <button
@@ -191,7 +191,7 @@ export function Onboarding({ eventId }: { eventId: string }) {
             onClick={next}
             className={[
               "h-11 rounded-md bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-700",
-              isLast ? "w-full" : "flex-1",
+              step === 0 ? "w-full" : "flex-1",
             ].join(" ")}
           >
             {isLast ? "Get started" : "Next"}

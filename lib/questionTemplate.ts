@@ -72,7 +72,7 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
       "Ketchup is a fruit jam",
     ],
     squares: [
-      { answer: "A hotdog is a sandwich", squareText: "Hotdog = sandwich", prompt: "If a hotdog is a sandwich, is a taco a sandwich too? Where does it end?", enabled: true },
+      { answer: "A hotdog is a sandwich", squareText: "Hotdog = sandwich", prompt: "Defend your position. You have 30 seconds.", enabled: true },
       { answer: "Cereal is a soup", squareText: "Cereal = soup", prompt: "Present your legal argument. We are listening.", enabled: true },
       { answer: "A Pop-Tart is a ravioli", squareText: "Pop-Tart = ravioli", prompt: "Does that make an uncrustable a dumpling? How deep does this go?", enabled: true },
       { answer: "Ketchup is a fruit jam", squareText: "Ketchup = fruit jam", prompt: "Walk us through the botanical analysis that got you here.", enabled: true },
@@ -84,7 +84,7 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
     options: ["Morning person", "Night owl", "Depends on the day"],
     squares: [
       { answer: "Morning person", squareText: "Morning person", prompt: "What ungodly hour do you wake up? Do you also enjoy running?", enabled: true },
-      { answer: "Night owl", squareText: "Night owl", prompt: "What is the latest you have stayed up debugging something you swore would be a 5 minute fix?", enabled: true },
+      { answer: "Night owl", squareText: "Night owl", prompt: "What do you end up doing when you can't sleep?", enabled: true },
       { answer: "Depends on the day", squareText: "It depends", prompt: "What determines which version of you shows up?", enabled: false },
     ],
   },
@@ -129,7 +129,7 @@ export const STARTER_QUESTIONS: StarterQuestion[] = [
     ],
   },
   {
-    prompt: "Any pets?",
+    prompt: "Do you have any pets?",
     type: "multi",
     options: ["Dog", "Cat", "Other", "No pets"],
     squares: [

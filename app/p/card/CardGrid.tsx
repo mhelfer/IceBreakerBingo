@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, MessageCircle, Sparkles, X } from "lucide-react";
 import { FREE_POSITION } from "@/lib/cardGen";
 
 export type SquareView = {
@@ -377,23 +377,30 @@ export function CardGrid({ squares }: { squares: SquareView[] }) {
                 <Sparkles size={18} /> BINGO! <Sparkles size={18} />
               </div>
             ) : null}
-            <div className="text-2xl font-semibold leading-tight text-zinc-900">
-              {reveal.squareText}
-            </div>
-            <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
-              <Check size={12} />
-              Claimed with {reveal.viaDisplayName}
-            </div>
             {reveal.loading ? (
-              <div className="mt-4 space-y-2">
-                <div className="h-3 w-3/4 animate-pulse rounded bg-zinc-200" />
-                <div className="h-3 w-1/2 animate-pulse rounded bg-zinc-200" />
+              <div className="space-y-2">
+                <div className="h-4 w-3/4 animate-pulse rounded bg-zinc-200" />
+                <div className="h-4 w-1/2 animate-pulse rounded bg-zinc-200" />
               </div>
             ) : reveal.conversationPrompt ? (
-              <p className="mt-4 text-sm leading-relaxed text-zinc-700">
-                {reveal.conversationPrompt}
-              </p>
+              <div className="rounded-lg bg-zinc-50 p-4">
+                <div className="flex items-start gap-2.5">
+                  <MessageCircle size={18} className="mt-0.5 shrink-0 text-zinc-400" />
+                  <p className="text-base font-medium leading-relaxed text-zinc-900">
+                    {reveal.conversationPrompt}
+                  </p>
+                </div>
+              </div>
             ) : null}
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-medium text-zinc-500">
+                {reveal.squareText}
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
+                <Check size={12} />
+                {reveal.viaDisplayName}
+              </div>
+            </div>
             <button
               type="button"
               onClick={dismissReveal}
