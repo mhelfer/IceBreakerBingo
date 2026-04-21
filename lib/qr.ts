@@ -5,8 +5,8 @@
 // Event code narrows the scope; player_id identifies the scanned player;
 // qr_nonce is the 96-bit random token that the server validates against
 // `players.qr_nonce`. No signing — the nonce is the capability. If a
-// nonce leaks the facilitator can re-mint via the player's access-code
-// flow (which rotates qr_nonce on the way through).
+// nonce leaks the facilitator can rotate the link via the admin panel
+// (which rotates qr_nonce on the way through).
 
 export type QrPayload = {
   eventCode: string;
