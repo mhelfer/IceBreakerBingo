@@ -30,11 +30,13 @@ export type PlayerRow = {
 
 export function RosterSection({
   eventCode,
+  eventName,
   state,
   players,
   origin,
 }: {
   eventCode: string;
+  eventName: string;
   state: EventState;
   players: PlayerRow[];
   origin: string;
@@ -61,8 +63,8 @@ export function RosterSection({
   }
 
   const allLinksBlock = players
-    .map((p) => `${p.display_name} — ${origin}/p/${eventCode}/${p.access_code}`)
-    .join("\n");
+    .map((p) => dmMessage(p.display_name, eventName, `${origin}/p/${eventCode}/${p.access_code}`))
+    .join("\n\n---\n\n");
   const csvHref =
     "data:text/csv;charset=utf-8," +
     encodeURIComponent(
@@ -180,7 +182,7 @@ export function RosterSection({
                         <span className="truncate font-mono text-[11px] text-zinc-500">
                           {link}
                         </span>
-                        <CopyButton value={link} iconOnly />
+                        <CopyButton value={dmMessage(p.display_name, eventName, link)} iconOnly />
                       </div>
                     </td>
                   ) : null}
@@ -231,6 +233,10 @@ export function RosterSection({
 function csvCell(s: string): string {
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
+}
+
+function dmMessage(name: string, eventName: string, link: string): string {
+  return `Hi ${name}! Here's your personal link for ${eventName}:\n${link}\n\nThis link is just for you — please don't share it with others.`;
 }
 
 function EditableName({

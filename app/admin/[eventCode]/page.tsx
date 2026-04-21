@@ -84,6 +84,7 @@ export default async function EventDashboardPage({
         ) : (
           <RosterSection
             eventCode={event.code}
+            eventName={event.name}
             state={event.state}
             players={roster}
             origin={origin}
