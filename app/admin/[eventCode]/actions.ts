@@ -437,6 +437,9 @@ export async function renamePlayer(
   displayName: string,
 ): Promise<void> {
   const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "draft" && event.state !== "survey_open") {
+    throw new Error("Cannot rename players after the survey closes.");
+  }
   const id = uuidSchema.parse(playerId);
   const name = displayName.trim();
   if (!name) throw new Error("Name cannot be empty.");

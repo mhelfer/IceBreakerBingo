@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { CheckCircle2, Clock, Download, Plus, Shuffle, Trash2, Upload, Users } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { AlertCircle, CheckCircle2, Clock, Download, Loader2, Plus, Shuffle, Trash2, Upload, Users } from "lucide-react";
 import { Banner } from "@/app/components/ui/Banner";
 import { buttonClass, Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -150,11 +150,15 @@ export function RosterSection({
               return (
                 <tr key={p.id} className="hover:bg-zinc-50/60">
                   <td className="px-4 py-2.5 font-medium text-zinc-900">
-                    <EditableName
-                      eventCode={eventCode}
-                      playerId={p.id}
-                      name={p.display_name}
-                    />
+                    {canDelete ? (
+                      <EditableName
+                        eventCode={eventCode}
+                        playerId={p.id}
+                        name={p.display_name}
+                      />
+                    ) : (
+                      p.display_name
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-zinc-500">
                     {p.contact_handle ?? "—"}
@@ -240,6 +244,8 @@ function EditableName({
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function save() {
@@ -247,30 +253,50 @@ function EditableName({
     if (!trimmed || trimmed === name) {
       setValue(name);
       setEditing(false);
+      setError(null);
       return;
     }
-    setEditing(false);
-    renamePlayer(eventCode, playerId, trimmed);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await renamePlayer(eventCode, playerId, trimmed);
+        setEditing(false);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Rename failed");
+      }
+    });
   }
 
   if (editing) {
     return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") save();
-          if (e.key === "Escape") {
-            setValue(name);
-            setEditing(false);
-          }
-        }}
-        autoFocus
-        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-sm font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/20"
-      />
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5">
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            disabled={pending}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={save}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") {
+                setValue(name);
+                setEditing(false);
+                setError(null);
+              }
+            }}
+            autoFocus
+            className="w-full rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-sm font-medium text-zinc-900 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/20 disabled:opacity-60"
+          />
+          {pending ? <Loader2 size={12} className="shrink-0 animate-spin text-zinc-400" /> : null}
+        </div>
+        {error ? (
+          <span className="inline-flex items-center gap-1 text-[11px] text-red-600">
+            <AlertCircle size={11} /> {error}
+          </span>
+        ) : null}
+      </div>
     );
   }
 
