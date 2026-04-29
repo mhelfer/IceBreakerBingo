@@ -49,7 +49,7 @@ export default async function PlayerQrPage() {
         </h1>
 
         <div
-          className="mx-auto mt-6 aspect-square w-full max-w-[360px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm"
+          className="mx-auto mt-6 aspect-square w-full max-w-[360px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
           dangerouslySetInnerHTML={{ __html: svg }}
           aria-label={`QR code for ${player.display_name}`}
         />
