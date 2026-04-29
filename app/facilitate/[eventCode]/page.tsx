@@ -35,7 +35,7 @@ type Prize =
   | "first_down"
   | "first_diagonal"
   | "first_blackout"
-  | "fastest_bingo"
+  | "most_bingos"
   | "unluckiest";
 
 const PRIZE_META: Record<
@@ -46,7 +46,7 @@ const PRIZE_META: Record<
   first_down: { label: "First down", icon: Medal, group: "live" },
   first_diagonal: { label: "First diagonal", icon: Medal, group: "live" },
   first_blackout: { label: "First blackout", icon: Trophy, group: "live" },
-  fastest_bingo: { label: "Fastest bingo", icon: Flame, group: "end" },
+  most_bingos: { label: "Most bingos", icon: Flame, group: "end" },
   unluckiest: { label: "Unluckiest", icon: Target, group: "end" },
 };
 
@@ -55,7 +55,7 @@ const PRIZE_ORDER: Prize[] = [
   "first_down",
   "first_diagonal",
   "first_blackout",
-  "fastest_bingo",
+  "most_bingos",
   "unluckiest",
 ];
 
@@ -65,13 +65,6 @@ function fmtTime(iso: string): string {
     minute: "2-digit",
     second: "2-digit",
   });
-}
-
-function fmtDuration(ms: number): string {
-  const s = Math.round(ms / 1000);
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return m > 0 ? `${m}m ${r}s` : `${r}s`;
 }
 
 export default async function FacilitateLivePage({
@@ -345,17 +338,16 @@ export default async function FacilitateLivePage({
                               <span className="font-medium">
                                 {playerById.get(r.player_id) ?? "?"}
                               </span>
-                              {key === "fastest_bingo" &&
+                              {key === "most_bingos" &&
                               r.detail &&
                               typeof r.detail === "object" &&
-                              "duration_ms" in r.detail ? (
+                              "bingo_count" in r.detail ? (
                                 <span className="ml-2 text-xs text-zinc-500">
-                                  {fmtDuration(
-                                    Number(
-                                      (r.detail as { duration_ms: number })
-                                        .duration_ms,
-                                    ),
-                                  )}
+                                  {Number(
+                                    (r.detail as { bingo_count: number })
+                                      .bingo_count,
+                                  )}{" "}
+                                  bingos
                                 </span>
                               ) : null}
                               {key === "unluckiest" &&

@@ -14,7 +14,7 @@ import {
 } from "@/lib/questionTemplate";
 import { seedsForQuestion, type MatchRule } from "@/lib/traits";
 import { generateCards } from "@/lib/cardGenIO";
-import { fastestBingoWinners, unluckiestWinners } from "@/lib/prizes";
+import { mostBingosWinners, unluckiestWinners } from "@/lib/prizes";
 
 const codeSchema = z
   .string()
@@ -261,27 +261,23 @@ export async function endGame(eventCode: string): Promise<void> {
     totalClaimsByCard.set(c.card_id, (totalClaimsByCard.get(c.card_id) ?? 0) + 1);
   }
   const firstBingoByPlayer = new Map<string, number>();
+  const bingoCountByPlayer = new Map<string, number>();
   for (const b of bingos ?? []) {
     const t = Date.parse(b.completed_at);
     const prev = firstBingoByPlayer.get(b.player_id);
     if (prev === undefined || t < prev) firstBingoByPlayer.set(b.player_id, t);
+    bingoCountByPlayer.set(
+      b.player_id,
+      (bingoCountByPlayer.get(b.player_id) ?? 0) + 1,
+    );
   }
 
-  // Fastest Bingo inputs.
-  const timings = eligiblePlayers.flatMap((p) => {
-    const cardId = cardIdByPlayer.get(p.id);
-    if (!cardId) return [];
-    const firstClaim = firstClaimByCard.get(cardId);
-    if (firstClaim === undefined) return [];
-    return [
-      {
-        playerId: p.id,
-        firstClaimAt: firstClaim,
-        firstBingoAt: firstBingoByPlayer.get(p.id) ?? null,
-      },
-    ];
-  });
-  const fastest = fastestBingoWinners(timings);
+  // Most Bingos inputs: total completed lines per eligible player.
+  const counts = eligiblePlayers.map((p) => ({
+    playerId: p.id,
+    bingoCount: bingoCountByPlayer.get(p.id) ?? 0,
+  }));
+  const most = mostBingosWinners(counts);
 
   // Unluckiest inputs: claims-to-bingo for bingoers, total claim count for non-bingoers.
   const claimsToBingo = eligiblePlayers.flatMap((p) => {
@@ -309,14 +305,14 @@ export async function endGame(eventCode: string): Promise<void> {
     .from("prize_awards")
     .delete()
     .eq("event_id", event.id)
-    .in("prize", ["fastest_bingo", "unluckiest"]);
+    .in("prize", ["most_bingos", "fastest_bingo", "unluckiest"]);
 
   const prizeRows = [
-    ...fastest.map((w) => ({
+    ...most.map((w) => ({
       event_id: event.id,
-      prize: "fastest_bingo" as const,
+      prize: "most_bingos" as const,
       player_id: w.playerId,
-      detail: { duration_ms: w.durationMs },
+      detail: { bingo_count: w.bingoCount },
     })),
     ...unluckiest.map((w) => ({
       event_id: event.id,

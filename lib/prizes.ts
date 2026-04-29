@@ -70,37 +70,22 @@ export function isBlackout(positions: Set<number>): boolean {
 
 // ─── end-of-game metrics ────────────────────────────────────────────────
 
-// Fastest Bingo: smallest (first_bingo_at − first_claim_at) interval.
-// Ties broken by earlier first_bingo_at. Only players who actually bingo'd
-// are eligible.
-export type PlayerBingoTimings = {
+// Most Bingos: highest count of completed bingo lines per player. Ties
+// share. Players with zero bingos are excluded.
+export type PlayerBingoCount = {
   playerId: string;
-  firstClaimAt: number; // ms epoch
-  firstBingoAt: number | null; // ms epoch; null if no bingo
+  bingoCount: number;
 };
 
-export function fastestBingoWinners(
-  players: PlayerBingoTimings[],
-): { playerId: string; durationMs: number }[] {
-  const eligible = players
-    .filter(
-      (p): p is PlayerBingoTimings & { firstBingoAt: number } =>
-        p.firstBingoAt !== null,
-    )
-    .map((p) => ({
-      playerId: p.playerId,
-      durationMs: p.firstBingoAt - p.firstClaimAt,
-      firstBingoAt: p.firstBingoAt,
-    }));
+export function mostBingosWinners(
+  players: PlayerBingoCount[],
+): { playerId: string; bingoCount: number }[] {
+  const eligible = players.filter((p) => p.bingoCount > 0);
   if (eligible.length === 0) return [];
-  const minDur = Math.min(...eligible.map((e) => e.durationMs));
-  const tiedOnDuration = eligible.filter((e) => e.durationMs === minDur);
-  // Break ties by earlier first_bingo_at — but tiebreaks that collapse to
-  // the same timestamp all share the prize.
-  const minBingo = Math.min(...tiedOnDuration.map((e) => e.firstBingoAt));
-  return tiedOnDuration
-    .filter((e) => e.firstBingoAt === minBingo)
-    .map((e) => ({ playerId: e.playerId, durationMs: e.durationMs }));
+  const max = Math.max(...eligible.map((p) => p.bingoCount));
+  return eligible
+    .filter((p) => p.bingoCount === max)
+    .map((p) => ({ playerId: p.playerId, bingoCount: p.bingoCount }));
 }
 
 // Unluckiest: highest claims-to-bingo. Bingoers use claims up to and

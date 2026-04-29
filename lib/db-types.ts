@@ -546,6 +546,7 @@ export type Database = {
         | "first_diagonal"
         | "first_blackout"
         | "fastest_bingo"
+        | "most_bingos"
         | "unluckiest"
       question_type: "single" | "multi" | "binary" | "text" | "numeric_bucket"
       trait_kind: "cohort" | "discovery"
@@ -694,6 +695,7 @@ export const Constants = {
         "first_diagonal",
         "first_blackout",
         "fastest_bingo",
+        "most_bingos",
         "unluckiest",
       ],
       question_type: ["single", "multi", "binary", "text", "numeric_bucket"],

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   completeLines,
-  fastestBingoWinners,
   isBlackout,
+  mostBingosWinners,
   unluckiestWinners,
 } from "@/lib/prizes";
 
@@ -74,38 +74,43 @@ describe("isBlackout", () => {
   });
 });
 
-describe("fastestBingoWinners", () => {
+describe("mostBingosWinners", () => {
   it("returns no winners when nobody bingo'd", () => {
     expect(
-      fastestBingoWinners([
-        { playerId: "A", firstClaimAt: 0, firstBingoAt: null },
+      mostBingosWinners([
+        { playerId: "A", bingoCount: 0 },
+        { playerId: "B", bingoCount: 0 },
       ]),
     ).toEqual([]);
   });
 
-  it("picks the smallest (bingo − first-claim) interval", () => {
-    const winners = fastestBingoWinners([
-      { playerId: "A", firstClaimAt: 0, firstBingoAt: 600 },
-      { playerId: "B", firstClaimAt: 100, firstBingoAt: 500 }, // 400ms
-      { playerId: "C", firstClaimAt: 200, firstBingoAt: 1000 },
+  it("picks the player with the highest bingo count", () => {
+    const winners = mostBingosWinners([
+      { playerId: "A", bingoCount: 1 },
+      { playerId: "B", bingoCount: 4 },
+      { playerId: "C", bingoCount: 2 },
     ]);
-    expect(winners).toEqual([{ playerId: "B", durationMs: 400 }]);
+    expect(winners).toEqual([{ playerId: "B", bingoCount: 4 }]);
   });
 
-  it("breaks duration ties by earlier bingo timestamp", () => {
-    const winners = fastestBingoWinners([
-      { playerId: "A", firstClaimAt: 0, firstBingoAt: 500 }, // 500 @ 500
-      { playerId: "B", firstClaimAt: 100, firstBingoAt: 600 }, // 500 @ 600
-    ]);
-    expect(winners).toEqual([{ playerId: "A", durationMs: 500 }]);
-  });
-
-  it("shares the prize on exact ties (same duration AND same bingo timestamp)", () => {
-    const winners = fastestBingoWinners([
-      { playerId: "A", firstClaimAt: 0, firstBingoAt: 500 },
-      { playerId: "B", firstClaimAt: 0, firstBingoAt: 500 },
+  it("shares the prize on ties at the top count", () => {
+    const winners = mostBingosWinners([
+      { playerId: "A", bingoCount: 3 },
+      { playerId: "B", bingoCount: 3 },
+      { playerId: "C", bingoCount: 1 },
     ]);
     expect(winners).toHaveLength(2);
+    expect(winners).toContainEqual({ playerId: "A", bingoCount: 3 });
+    expect(winners).toContainEqual({ playerId: "B", bingoCount: 3 });
+  });
+
+  it("excludes zero-bingo players even when others tie at zero", () => {
+    const winners = mostBingosWinners([
+      { playerId: "A", bingoCount: 0 },
+      { playerId: "B", bingoCount: 2 },
+      { playerId: "C", bingoCount: 0 },
+    ]);
+    expect(winners).toEqual([{ playerId: "B", bingoCount: 2 }]);
   });
 });
 
