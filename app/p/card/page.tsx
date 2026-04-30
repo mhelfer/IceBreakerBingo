@@ -21,7 +21,11 @@ export default async function PlayerCardPage() {
   if (!player) redirect("/p/link-invalid");
   const event = Array.isArray(player.events) ? player.events[0] : player.events;
   if (!event) redirect("/p/link-invalid");
-  if (event.state !== "live" && event.state !== "ended") {
+  if (
+    event.state !== "live" &&
+    event.state !== "paused" &&
+    event.state !== "ended"
+  ) {
     redirect("/p/not-yet");
   }
 
@@ -150,6 +154,12 @@ export default async function PlayerCardPage() {
           aria-hidden
         />
       </div>
+
+      {event.state === "paused" ? (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Game paused. Scanning is disabled until your facilitator resumes.
+        </div>
+      ) : null}
 
       <CardGrid squares={squares} />
       {event.state === "live" ? <Onboarding eventId={player.event_id} /> : null}

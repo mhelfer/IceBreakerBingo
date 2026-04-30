@@ -8,6 +8,7 @@ import {
   Clock,
   Flame,
   Medal,
+  Pause,
   Radio,
   Shuffle,
   Square,
@@ -27,6 +28,7 @@ import {
 } from "../../admin/[eventCode]/actions";
 import { AutoRefresh } from "./AutoRefresh";
 import { EndGameButton } from "./EndGameButton";
+import { PauseResumeButton } from "./PauseResumeButton";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +88,11 @@ export default async function FacilitateLivePage({
     .eq("facilitator_id", session.facilitator_id)
     .maybeSingle();
   if (!event) notFound();
-  if (event.state !== "live" && event.state !== "ended") {
+  if (
+    event.state !== "live" &&
+    event.state !== "paused" &&
+    event.state !== "ended"
+  ) {
     redirect(`/admin/${event.code}`);
   }
 
@@ -229,6 +235,8 @@ export default async function FacilitateLivePage({
   const totalBingos = bingos?.length ?? 0;
   const playerCount = (players ?? []).filter((p) => !p.absent).length;
   const isLive = event.state === "live";
+  const isPaused = event.state === "paused";
+  const inSession = isLive || isPaused;
 
   return (
     <div className="min-h-screen bg-zinc-50/40">
@@ -251,7 +259,7 @@ export default async function FacilitateLivePage({
                 <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 font-mono text-xs text-zinc-600">
                   {event.code}
                 </span>
-                <LiveStatusPill isLive={isLive} />
+                <LiveStatusPill state={event.state} />
               </div>
               <p className="mt-1 text-xs text-zinc-500">
                 {event.started_at
@@ -265,8 +273,14 @@ export default async function FacilitateLivePage({
               <span className="text-xs text-zinc-500">
                 {totalClaims} claims · {totalBingos} bingos · {playerCount} players
               </span>
-              {isLive ? (
-                <EndGameButton eventCode={event.code} />
+              {inSession ? (
+                <>
+                  <PauseResumeButton
+                    eventCode={event.code}
+                    paused={isPaused}
+                  />
+                  <EndGameButton eventCode={event.code} />
+                </>
               ) : (
                 <form action={endGame.bind(null, event.code)}>
                   <SubmitButton variant="secondary" size="md">
@@ -523,8 +537,8 @@ export default async function FacilitateLivePage({
   );
 }
 
-function LiveStatusPill({ isLive }: { isLive: boolean }) {
-  if (isLive) {
+function LiveStatusPill({ state }: { state: "live" | "paused" | "ended" }) {
+  if (state === "live") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
         <span className="relative inline-flex h-2 w-2">
@@ -532,6 +546,13 @@ function LiveStatusPill({ isLive }: { isLive: boolean }) {
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
         </span>
         Live
+      </span>
+    );
+  }
+  if (state === "paused") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+        <Pause size={10} /> Paused
       </span>
     );
   }

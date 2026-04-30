@@ -21,6 +21,7 @@ export default async function PlayerQrPage() {
 
   const event = Array.isArray(player.events) ? player.events[0] : player.events;
   if (!event) redirect("/p/link-invalid");
+  if (event.state === "paused") redirect("/p/paused");
   if (event.state !== "live" && event.state !== "ended") {
     redirect("/p/not-yet");
   }

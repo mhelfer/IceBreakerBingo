@@ -539,6 +539,7 @@ export type Database = {
         | "survey_closed"
         | "curation_locked"
         | "live"
+        | "paused"
         | "ended"
       prize_kind:
         | "first_across"
@@ -687,6 +688,7 @@ export const Constants = {
         "survey_closed",
         "curation_locked",
         "live",
+        "paused",
         "ended",
       ],
       prize_kind: [

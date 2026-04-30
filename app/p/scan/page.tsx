@@ -17,6 +17,7 @@ export default async function PlayerScanPage() {
     .eq("id", session.event_id)
     .maybeSingle();
   if (!event) redirect("/p/link-invalid");
+  if (event.state === "paused") redirect("/p/paused");
   if (event.state !== "live") redirect("/p/not-yet");
 
   return (

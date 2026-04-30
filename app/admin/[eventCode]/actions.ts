@@ -198,21 +198,59 @@ export async function setShowAllMatches(
   revalidatePath(`/facilitate/${event.code}`);
 }
 
+export async function pauseGame(eventCode: string): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "live") {
+    throw new Error(`Can't pause from state ${event.state}.`);
+  }
+  const { data: updated, error } = await supabase
+    .from("events")
+    .update({ state: "paused" })
+    .eq("id", event.id)
+    .eq("state", "live") // CAS
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!updated) return; // raced — already transitioned
+  revalidatePath(`/facilitate/${event.code}`);
+}
+
+export async function resumeGame(eventCode: string): Promise<void> {
+  const { supabase, event } = await loadOwnedEvent(eventCode);
+  if (event.state !== "paused") {
+    throw new Error(`Can't resume from state ${event.state}.`);
+  }
+  const { data: updated, error } = await supabase
+    .from("events")
+    .update({ state: "live" })
+    .eq("id", event.id)
+    .eq("state", "paused") // CAS
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!updated) return;
+  revalidatePath(`/facilitate/${event.code}`);
+}
+
 export async function endGame(eventCode: string): Promise<void> {
   const { supabase, event } = await loadOwnedEvent(eventCode);
-  if (event.state !== "live" && event.state !== "ended") {
+  if (
+    event.state !== "live" &&
+    event.state !== "paused" &&
+    event.state !== "ended"
+  ) {
     throw new Error(`Can't end game from state ${event.state}.`);
   }
 
   // Freeze state first so new claims are rejected while we compute.
   // If already ended (re-entry for prize recovery), skip the state update.
-  if (event.state === "live") {
+  if (event.state === "live" || event.state === "paused") {
     const endedAt = new Date().toISOString();
     const { data: updated, error: stateErr } = await supabase
       .from("events")
       .update({ state: "ended", ended_at: endedAt })
       .eq("id", event.id)
-      .eq("state", "live") // CAS: only transition if still live
+      .in("state", ["live", "paused"]) // CAS: transition from either prior state
       .select("id")
       .maybeSingle();
     if (stateErr) throw new Error(stateErr.message);
