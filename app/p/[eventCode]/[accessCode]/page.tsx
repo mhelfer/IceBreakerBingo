@@ -37,7 +37,11 @@ export default async function PlayerEntryPage() {
   ) {
     redirect("/p/survey");
   }
-  if (event.state === "live" || event.state === "ended") {
+  if (
+    event.state === "live" ||
+    event.state === "paused" ||
+    event.state === "ended"
+  ) {
     redirect("/p/card");
   }
 

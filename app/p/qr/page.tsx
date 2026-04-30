@@ -21,23 +21,30 @@ export default async function PlayerQrPage() {
 
   const event = Array.isArray(player.events) ? player.events[0] : player.events;
   if (!event) redirect("/p/link-invalid");
-  if (event.state === "paused") redirect("/p/paused");
-  if (event.state !== "live" && event.state !== "ended") {
+  if (
+    event.state !== "live" &&
+    event.state !== "paused" &&
+    event.state !== "ended"
+  ) {
     redirect("/p/not-yet");
   }
+
+  const isPaused = event.state === "paused";
 
   const payload = encodeQrPayload({
     eventCode: event.code,
     playerId: player.id,
     qrNonce: player.qr_nonce,
   });
-  const svg = await QRCode.toString(payload, {
-    type: "svg",
-    errorCorrectionLevel: "M",
-    margin: 1,
-    width: 360,
-    color: { dark: "#0a0a0a", light: "#ffffff" },
-  });
+  const svg = isPaused
+    ? ""
+    : await QRCode.toString(payload, {
+        type: "svg",
+        errorCorrectionLevel: "M",
+        margin: 1,
+        width: 360,
+        color: { dark: "#0a0a0a", light: "#ffffff" },
+      });
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-4 pb-28 pt-8">
@@ -49,15 +56,27 @@ export default async function PlayerQrPage() {
           {player.display_name}
         </h1>
 
+        {isPaused ? (
+          <div className="mx-auto mt-6 max-w-[360px] rounded-2xl border border-amber-200 bg-amber-50 px-4 py-6 text-sm text-amber-900">
+            <p className="font-medium">Game paused</p>
+            <p className="mt-1 text-amber-800">
+              Your facilitator paused scanning. Refresh this page when the
+              game picks back up.
+            </p>
+          </div>
+        ) : null}
+
         <div
-          className="mx-auto mt-6 aspect-square w-full max-w-[360px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
+          className={`mx-auto mt-6 aspect-square w-full max-w-[360px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm [&>svg]:block [&>svg]:h-full [&>svg]:w-full${isPaused ? " hidden" : ""}`}
           dangerouslySetInnerHTML={{ __html: svg }}
           aria-label={`QR code for ${player.display_name}`}
         />
 
-        <p className="mx-auto mt-6 max-w-[260px] text-sm text-zinc-500">
-          Let teammates scan this to claim a square on their card.
-        </p>
+        {isPaused ? null : (
+          <p className="mx-auto mt-6 max-w-[260px] text-sm text-zinc-500">
+            Let teammates scan this to claim a square on their card.
+          </p>
+        )}
       </div>
 
       <PlayerTabs active="qr" />
